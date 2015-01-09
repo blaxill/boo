@@ -1,0 +1,5 @@
+[package]
+
+name = "boo"
+version = "0.0.1"
+authors = ["Ben Blaxill <ben.blaxill@gmail.com>"]
