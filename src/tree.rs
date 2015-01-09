@@ -21,6 +21,6 @@ impl<H: Hasher + Writer> Hash<H> for Tree {
 }
 
 /// Standalone methods to hide from public interface
-pub fn new(target: NodeId) -> Tree { Tree{ target: Cell::new(target)} }
+pub fn new_tree(target: NodeId) -> Tree { Tree{ target: Cell::new(target)} }
 pub fn get_target(this: &Tree) -> NodeId { this.target.get() }
 pub fn set_target(this: &Tree, node: NodeId) { this.target.set(node) }
