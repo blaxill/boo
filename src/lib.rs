@@ -1,46 +1,26 @@
 #![feature(slicing_syntax)]
+#![allow(unstable)]
+
+pub use tree::Tree;
+pub use node::{NodeRef, NodeId};
+use node::{Node, new_node_ref, node_ref_to_id};
 
 use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Vacant, Occupied};
-use std::kinds::marker::InvariantLifetime;
 use std::iter::repeat;
+use std::rc::{Rc, Weak};
+
+mod tree;
+mod node;
 
 pub type Term = u16;
-
-// Internal node type
-#[derive(Show, Copy, Clone, PartialEq, Eq, Hash)]
-enum Node {
-    Variable(Term, uint, uint),
-    True,
-    False,
-}
-
-// Public node type for access during Tree.with()
-#[derive(Copy, Clone, PartialEq, Eq)]
-pub struct NodeRef<'a> {
-    id: NodeId,
-    life: InvariantLifetime<'a>,
-}
-
-type NodeId = uint;
-pub type TreeId = uint;
-
-pub struct TreeRef {
-    id: TreeId,
-}
-
-struct Tree {
-    target_node: uint,
-    ref_count: u32,
-}
 
 pub struct Forest {
     nodes: Vec<Node>,
     locations: HashMap<Node, NodeId>,
 
-    trees: HashMap<TreeId, Tree>,
-    tree_by_node: HashMap<NodeId, TreeId>,
-    next_tree: TreeId,
+    trees: HashSet<Rc<Tree>>,
+    tree_by_node: HashMap<NodeId, Weak<Tree>>,
 
     // Memoization
     adds: HashMap<(NodeId, NodeId), NodeId>,
@@ -50,52 +30,40 @@ pub struct ForestContext<'a> {
     parent: &'a mut Forest
 }
 
-impl<'a> NodeRef<'a> {
-    fn new(id: NodeId) -> NodeRef<'a> {
-        NodeRef{id: id, life: InvariantLifetime }
-    }
-}
-
-impl<'a> std::fmt::Show for NodeRef<'a> {
-    fn fmt(&self, f: &mut std::fmt::Formatter) -> Result<(), std::fmt::Error>{
-        write!(f, "{}", self.id)
-    }
-}
-
 impl<'a> ForestContext<'a> {
     pub fn constant(&self, t: bool) -> NodeRef<'a> {
-        if t { NodeRef::new(1) }
-        else { NodeRef::new(0) }
+        if t { new_node_ref(1) }
+        else { new_node_ref(0) }
     }
 
     pub fn term(&mut self, v: Term) -> NodeRef<'a> {
         let id = self.parent.get_node_id(
                          &Node::Variable(v, 1, 0));
-        NodeRef::new(id)
+        new_node_ref(id)
     }
 
     pub fn add(&mut self, lhs: NodeRef, rhs: NodeRef)
         -> NodeRef<'a> {
-        let id = self.parent.add_by_id(lhs.id, rhs.id);
-        NodeRef::new(id)
+        let id = self.parent.add_by_id(node_ref_to_id(lhs), node_ref_to_id(rhs));
+        new_node_ref(id)
     }
 
     pub fn mul(&mut self, lhs: NodeRef, rhs: NodeRef)
         -> NodeRef<'a> {
-        let id = self.parent.mul_by_id(lhs.id, rhs.id);
-        NodeRef::new(id)
+        let id = self.parent.mul_by_id(node_ref_to_id(lhs), node_ref_to_id(rhs));
+        new_node_ref(id)
     }
 
     pub fn evaluate(&self, node: NodeRef, set_terms: &HashSet<Term>) -> bool {
-        self.parent.evaluate(node.id, set_terms)
+        self.parent.evaluate(node_ref_to_id(node), set_terms)
     }
 
-    pub fn save_as_tree(&mut self, node: NodeRef) -> TreeId {
-        self.parent.tree_id_from_node_id(node.id)
+    pub fn save_as_tree(&mut self, node: NodeRef) -> Rc<Tree> {
+        self.parent.tree_from_node_id(node_ref_to_id(node))
     }
 
-    pub fn tree_as_node(&mut self, tree: TreeId) -> NodeRef<'a> {
-        NodeRef::new(self.parent.trees[tree].target_node)
+    pub fn tree_as_node(&mut self, tree: &Rc<Tree>) -> NodeRef<'a> {
+        new_node_ref(tree::get_target(&**tree))
     }
 }
 
@@ -109,9 +77,8 @@ impl Forest {
                 locations.insert(Node::True, 1);
                 locations
             },
-            trees: HashMap::new(),
+            trees: HashSet::new(),
             tree_by_node: HashMap::new(),
-            next_tree: 0,
 
             adds: HashMap::new(),
             muls: HashMap::new(),
@@ -127,24 +94,22 @@ impl Forest {
         f(&mut context);
     }
 
-    pub fn release_tree(&mut self, tree: TreeId) {
-        self.trees[tree].ref_count -= 1;
-    }
-
-    fn tree_id_from_node_id(&mut self, node: NodeId) -> TreeId {
-        match self.tree_by_node.entry(&node) {
+    fn tree_from_node_id(&mut self, node: NodeId) -> Rc<Tree> {
+        match self.tree_by_node.entry(node) {
             Vacant(e) => {
-                let id = self.next_tree;
-                self.next_tree += 1;
-                self.trees.insert(id, Tree{target_node: node, ref_count: 1});
-                e.insert(id);
-                id
+                let t = Rc::new(tree::new(node));
+                self.trees.insert(t.clone());
+                e.insert(t.clone().downgrade());
+                t
             },
             Occupied(e) => {
-                self.trees[*e.get()].ref_count += 1;
-                *e.get()
+                e.get().upgrade().unwrap()
             },
         }
+    }
+
+    pub fn new_empty_tree(&mut self) -> Rc<Tree> {
+        self.tree_from_node_id(0)
     }
 
     pub fn release_unreferenced_nodes(&mut self) {
@@ -153,26 +118,13 @@ impl Forest {
         markers[0] = true;
         markers[1] = true;
 
-        let tree_markers: Vec<bool> = (0..self.trees.len())
-            .map(|i| {
-                if self.trees[i].ref_count > 0 {
-                    true
-                } else {
-                    false
-                }
-            }).collect();
-
         self.trees = self.trees.iter()
-            .filter(|&(_, t)| t.ref_count > 0 )
-            .map(|(&k, v)|{
-                (k, Tree{
-                    target_node: v.target_node,
-                    ref_count: v.ref_count,
-                })
-            }).collect();
+            .filter(|&t| std::rc::strong_count(t) > 1 )
+            .map(|x|x.clone())
+            .collect();
 
-        for (_, t) in self.trees.iter(){
-            markers[t.target_node] = true;
+        for t in self.trees.iter(){
+            markers[tree::get_target(&**t)] = true;
         }
 
         for i in (2..self.nodes.len()).rev(){
@@ -183,7 +135,7 @@ impl Forest {
             }
         }
 
-        let mapping: Vec<uint> = (0..self.nodes.len())
+        let mapping: Vec<usize> = (0..self.nodes.len())
             .scan(0, |next_mapping, i| {
                 if markers[i] {
                     *next_mapping += 1;
@@ -193,20 +145,19 @@ impl Forest {
                 }
             }).collect();
 
-        self.trees = self.trees.iter()
-            .map(|(&k, v)|{
-                (k, Tree{
-                    target_node: mapping[v.target_node],
-                    ref_count: v.ref_count,
-                })
-            })
-            .collect();
+        for t in self.trees.iter() {
+            let previous = tree::get_target(&**t);
+            tree::set_target(&**t, mapping[previous]);
+        }
 
         self.tree_by_node = self.tree_by_node.iter()
-            .filter_map(|(&node, &tree)| {
-                if tree_markers[tree] {
-                    Some((mapping[node], tree))
-                } else { None }
+            .filter_map(|(&node, t)| {
+                match t.upgrade(){
+                    Some(_) => {
+                        Some((mapping[node], t.clone()))
+                    }
+                    None => None,
+                }
             }).collect();
 
         self.nodes = self.nodes.iter()
@@ -268,7 +219,7 @@ impl Forest {
     }
 
     fn get_node_id(&mut self, n: &Node) -> NodeId {
-        match self.locations.entry(n) {
+        match self.locations.entry(*n) {
             Vacant(e) => {
                 self.nodes.push(*n);
                 let id = self.nodes.len() - 1;
