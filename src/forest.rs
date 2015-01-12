@@ -19,6 +19,7 @@ pub struct Forest {
     // Memoization
     adds: HashMap<(NodeId, NodeId), NodeId>,
     muls: HashMap<(NodeId, NodeId), NodeId>,
+    divs: HashMap<(NodeId, NodeId), NodeId>,
 }
 pub struct ForestContext<'a> {
     parent: &'a mut Forest
@@ -364,23 +365,24 @@ impl Forest {
         memoized
     }
 
-    fn node_lead_and_degree(&self, node: NodeId) -> (HashSet<Term>, NodeId) {
-        if node < 2 {
-            return (HashSet::new(), 0);
-        }
+    fn node_lead_and_degree(&mut self, node: NodeId) -> (NodeId, usize) {
+        if node < 2 { return (1, 0); }
 
         let (mut h1, d1) = self.node_lead_and_degree(self.follow_high(node));
         let (h0, d0) = self.node_lead_and_degree(self.follow_low(node));
 
         if d0 < d1 + 1 {
-            h1.insert(self.get_variable(node).unwrap());
+            //h1.insert(self.get_variable(node).unwrap());
+            h1 = self.get_node_id(&Node::Variable(
+                                self.get_variable(node).unwrap(),
+                                h1, 0));
             (h1, d1 + 1)
         } else {
             (h0, d0)
         }
     }
 
-    fn node_monomial_count(&self, node: NodeId) -> NodeId {
+    fn node_monomial_count(&self, node: NodeId) -> usize {
         match self.nodes[node] {
             Node::False => 0,
             Node::True => 1,
@@ -388,6 +390,44 @@ impl Forest {
                 self.node_monomial_count(h) + self.node_monomial_count(l)
             }
         }
+    }
+
+    fn node_divide_by_monomial(&mut self, poly: NodeId, monomial: NodeId) -> NodeId {
+        if poly == monomial { return 1; }
+        if poly < 2 { return 0; }
+        if monomial == 1 { return poly; }
+        if monomial == 0 { panic!("Divide by zero!") }
+
+        if let Some(memoized) = self.divs.get(&(poly, monomial)) {
+            return *memoized;
+        }
+
+        let lo = self.get_variable(poly);
+        let ro = self.get_variable(monomial);
+
+        let memoized = match (lo, ro) {
+            (Some(lv), Some(rv)) => {
+                if lv == rv {
+                    self.node_divide_by_monomial(
+                        self.follow_high(poly),
+                        self.follow_high(monomial))
+                } else if rv > lv {
+                    self.get_node_id(&Node::Variable(
+                            lv,
+                            self.node_divide_by_monomial(
+                                self.follow_high(poly),
+                                monomial),
+                            self.node_divide_by_monomial(
+                                self.follow_low(poly),
+                                monomial)
+                            ));
+                } else { 0 }
+            }
+            _ => panic!("Unreachable branch in divide!");
+        };
+
+        self.divs.insert((lhs,rhs),memoized);
+        memoized
     }
 
     fn evaluate(&self, node: NodeId, set_terms: &HashSet<Term>) -> bool {
