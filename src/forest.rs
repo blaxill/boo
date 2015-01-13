@@ -77,6 +77,7 @@ impl Forest {
 
             adds: HashMap::new(),
             muls: HashMap::new(),
+            divs: HashMap::new(),
         }
     }
 
@@ -368,14 +369,15 @@ impl Forest {
     fn node_lead_and_degree(&mut self, node: NodeId) -> (NodeId, usize) {
         if node < 2 { return (1, 0); }
 
-        let (mut h1, d1) = self.node_lead_and_degree(self.follow_high(node));
-        let (h0, d0) = self.node_lead_and_degree(self.follow_low(node));
+        let hi = self.follow_high(node);
+        let lo = self.follow_low(node);
+        let (mut h1, d1) = self.node_lead_and_degree(hi);
+        let (h0, d0) = self.node_lead_and_degree(lo);
 
         if d0 < d1 + 1 {
             //h1.insert(self.get_variable(node).unwrap());
-            h1 = self.get_node_id(&Node::Variable(
-                                self.get_variable(node).unwrap(),
-                                h1, 0));
+            let v = self.get_variable(node).unwrap();
+            h1 = self.get_node_id(&Node::Variable(v, h1, 0));
             (h1, d1 + 1)
         } else {
             (h0, d0)
@@ -407,26 +409,22 @@ impl Forest {
 
         let memoized = match (lo, ro) {
             (Some(lv), Some(rv)) => {
+                let hi = self.follow_high(poly);
+                let hi_mono = self.follow_high(monomial);
                 if lv == rv {
-                    self.node_divide_by_monomial(
-                        self.follow_high(poly),
-                        self.follow_high(monomial))
+                    self.node_divide_by_monomial(hi, hi_mono)
                 } else if rv > lv {
-                    self.get_node_id(&Node::Variable(
-                            lv,
-                            self.node_divide_by_monomial(
-                                self.follow_high(poly),
-                                monomial),
-                            self.node_divide_by_monomial(
-                                self.follow_low(poly),
-                                monomial)
-                            ));
+                    let hi = self.follow_high(poly);
+                    let lo = self.follow_low(poly);
+                    let div_hi = self.node_divide_by_monomial(hi, monomial);
+                    let div_lo = self.node_divide_by_monomial(lo, monomial);
+                    self.get_node_id(&Node::Variable(lv, div_hi, div_lo))
                 } else { 0 }
             }
-            _ => panic!("Unreachable branch in divide!");
+            _ => panic!("Unreachable branch in divide!"),
         };
 
-        self.divs.insert((lhs,rhs),memoized);
+        self.divs.insert((poly,monomial),memoized);
         memoized
     }
 

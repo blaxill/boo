@@ -1,6 +1,5 @@
 use std::marker::InvariantLifetime;
 use std::fmt::{Show, Formatter, Error};
-
 use ::Term;
 
 // Internal node type
