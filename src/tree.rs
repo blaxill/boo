@@ -2,6 +2,7 @@ use std::cell::Cell;
 use std::hash::{Hash, Hasher, Writer};
 use ::NodeId;
 
+
 pub struct Tree {
     target: Cell<NodeId>,
 }
