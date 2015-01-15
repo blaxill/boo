@@ -60,6 +60,18 @@ impl<'a> ForestContext<'a> {
     pub fn tree_as_node(&mut self, tree: &Rc<Tree>) -> NodeRef<'a> {
         new_node_ref(get_target(&**tree))
     }
+
+    pub fn lead_and_degree(&mut self, node: NodeRef) -> (NodeRef<'a>, uint) {
+        let (n, d) = self.parent.node_lead_and_degree(node);
+        (new_node_ref(n), d)
+    }
+
+    pub fn divide_by_monomial(&mut self, polynomial: NodeRef,
+                              monomial: NodeRef)
+        -> NodeRef<'a> {
+        new_node_ref(self.parent.node_divide_by_monomial(polynomial,
+                                                         monomial))
+    }
 }
 
 impl Forest {
