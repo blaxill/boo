@@ -1,16 +1,30 @@
-use forest::{ForestContext, NodeRef};
+use forest::{Forest, NodeId};
+use std::collections::HashSet;
 
-fn normal_form<'a>(ctx: &mut ForestContext<'a>,
-                   equations: Vec<NodeRef<'a>>) -> Vec<NodeRef<'a>> {
-    let mut results = equations.clone();
-    for (i, e) in equations.iter().enumerate() {
-        results = results.into_iter().enumerate().map(|j, o| {
-            if j == i { return o }
-            let (lead, _) = ctx.lead_and_degree(*e);
-            let remainder = ctx.divide_by_monomial(o, lead);
-            if remainder == 0 { return o }
-            // o = o - remainder*e
-            return o
-        }).collect();
+pub fn normal_form(f: &mut Forest,
+              equations: Vec<NodeId>) -> Vec<NodeId> {
+    let mut reductors: HashSet<NodeId> = equations.into_iter().collect();
+    let mut results = reductors.clone();
+
+    loop {
+        for &e in reductors.iter() {
+            let reduced = reductors.iter()
+                .filter_map(|&o| {
+                    let (lead, _) = f.lead_and_degree(e);
+                    let remainder = f.divide_by_monomial(o, lead);
+                    let m = f.mul_by_id(remainder, e);
+                    let result = f.add_by_id(o, m);
+                    /*println!("{} = {} + {}*{} (={})",
+                             result, o, remainder, e, m);*/
+
+                    if m == 0 || result == 0 { return None }
+
+                    Some(result)
+                });
+            results = results.into_iter().chain(reduced).collect();
+        }
+        if results.len() == reductors.len() { break; }
+        reductors = results.clone();
     }
+    results.into_iter().collect()
 }
