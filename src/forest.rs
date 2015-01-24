@@ -41,97 +41,9 @@ impl Forest {
         }
     }
 
-    /*pub fn release_unreferenced_nodes(&mut self) {
-        let mut markers: Vec<bool> = repeat(false).take(self.nodes.len()).collect();
-
-        markers[0] = true;
-        markers[1] = true;
-
-        self.trees = self.trees.iter()
-            .filter(|&t| strong_count(t) > 1 )
-            .map(|x|x.clone())
-            .collect();
-
-        for t in self.trees.iter(){
-            markers[get_target(&**t)] = true;
-        }
-
-        for i in (2..self.nodes.len()).rev(){
-            if markers[i] {
-                let (h, l) = (self.follow_high(i), self.follow_low(i));
-                if h > 1 { markers[h] = true; }
-                if l > 1 { markers[l] = true; }
-            }
-        }
-
-        let mapping: Vec<usize> = (0..self.nodes.len())
-            .scan(0, |next_mapping, i| {
-                if markers[i] {
-                    *next_mapping += 1;
-                    Some((*next_mapping)-1)
-                } else {
-                    Some(0)
-                }
-            }).collect();
-
-        for t in self.trees.iter() {
-            let previous = get_target(&**t);
-            set_target(&**t, mapping[previous]);
-        }
-
-        self.tree_by_node = self.tree_by_node.iter()
-            .filter_map(|(&node, t)| {
-                match t.upgrade(){
-                    Some(_) => {
-                        Some((mapping[node], t.clone()))
-                    }
-                    None => None,
-                }
-            }).collect();
-
-        self.nodes = self.nodes.iter()
-            .zip(markers.iter())
-            .filter_map(|(&n, &marker)|{
-                if marker {
-                    match n {
-                        Node::Variable(t, h, l) => {
-                            let h = mapping[h];
-                            let l = mapping[l];
-                            Some(Node::Variable(t, h, l))
-                        }
-                        _ => Some(n),
-                    }
-                } else { None }
-            })
-            .collect();
-
-        self.adds = self.adds.iter()
-            .filter_map(|(&(lhs, rhs), &res)|{
-                if markers[lhs] && markers[rhs] && markers[res] {
-                    Some( ((mapping[lhs], mapping[rhs]), mapping[res]) )
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        self.muls = self.muls.iter()
-            .filter_map(|(&(lhs, rhs), &res)|{
-                if markers[lhs] && markers[rhs] && markers[res] {
-                    Some( ((mapping[lhs], mapping[rhs]), mapping[res]) )
-                } else {
-                    None
-                }
-            })
-            .collect();
-
-        self.locations = self.nodes.iter()
-            .enumerate()
-            .map(|(i, &n)|{
-                (n, i)
-            })
-            .collect();
-    }*/
+    pub fn term(&mut self, t: Term) -> NodeId {
+        self.get_node_id(Node::Variable(t, 1, 0))
+    }
 
     fn follow_high(&self, node: NodeId) -> NodeId {
         match self.nodes[node] {
@@ -399,6 +311,6 @@ impl Show for Forest {
             n.fmt(f);
             writeln!(f, "");
         }
-        writeln!(f, "")
+        write!(f, "")
     }
 }

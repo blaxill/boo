@@ -1,8 +1,10 @@
 use forest::{Forest, Node};
 use grobner::normal_form;
+use integer::{Integer, crc32_round, crc32_round_verify};
 
 mod forest;
 mod grobner;
+mod integer;
 
 fn print_v(v: Vec<usize>) {
     for e in v.iter() {
@@ -23,6 +25,13 @@ fn main(){
     println!("{}", f.evaluate(x, &vec![0].into_iter().collect()));
     print_v(vec![x_1, x, y, y_1, y_x]);
     print_v(normal_form(&mut f, vec![x_1, x, y]));
-    print_v(normal_form(&mut f, vec![xy, y]));
+    print_v(normal_form(&mut f, vec![xy, y_1]));
     println!("{:?}", f);
+
+    let real_output = crc32_round_verify(123, 345);
+    let value = crc32_round(Integer::new_input(f, 0),
+                            Integer::new_constant(345));
+    println!("{:?}", output);
+    println!("{:?}", value.evaluate());
 }
+
