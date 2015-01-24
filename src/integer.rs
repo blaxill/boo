@@ -1,3 +1,4 @@
+use std::collections::{HashSet};
 use forest::{Forest, Node, NodeId, Term};
 
 #[derive(Clone)]
@@ -16,6 +17,10 @@ impl Integer {
         Integer{bits: (0..32)
             .map(|i| ((value>>i)&1) as NodeId )
             .collect()}
+    }
+
+    pub fn as_vec(&self) -> Vec<NodeId> {
+        self.bits.clone()
     }
 
     pub fn xor(&self, f: &mut Forest, other: &Integer) -> Integer {
@@ -65,7 +70,13 @@ impl Integer {
         result
     }
 
-    pub fn evaluate() {
+    pub fn evaluate(&self, f: &Forest, terms: &HashSet<Term>) -> u32 {
+        self.bits
+            .iter()
+            .rev()
+            .fold(0, |acc, &x|
+                  (acc<<1) + if f.evaluate(x, terms) { 1 } else { 0 }
+                )
     }
 }
 

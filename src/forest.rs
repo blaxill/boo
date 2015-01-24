@@ -284,6 +284,17 @@ impl Forest {
         memoized
     }
 
+    pub fn is_term_equation(&self, node: NodeId) -> Option<(Term, bool)> {
+        let hi = self.follow_high(node);
+        let lo = self.follow_low(node);
+
+        if hi > 1 || lo > 1 { return None }
+
+        let v = self.get_variable(node).unwrap();
+
+        Some((v, lo == 1))
+    }
+
     pub fn evaluate(&self, node: NodeId, set_terms: &HashSet<Term>) -> bool {
         match node {
             0 => false,

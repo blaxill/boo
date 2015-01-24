@@ -15,7 +15,7 @@ fn print_v(v: Vec<usize>) {
 
 fn main(){
     let mut f = Forest::new();
-    let x = f.get_node_id(Node::Variable(0, 1, 0));
+    /*let x = f.get_node_id(Node::Variable(0, 1, 0));
     let y = f.get_node_id(Node::Variable(1, 1, 0));
     let xy = f.mul_by_id(x, y);
     let x_1 = f.add_by_id(x, 1);
@@ -26,12 +26,25 @@ fn main(){
     print_v(vec![x_1, x, y, y_1, y_x]);
     print_v(normal_form(&mut f, vec![x_1, x, y]));
     print_v(normal_form(&mut f, vec![xy, y_1]));
-    println!("{:?}", f);
+    println!("{:?}", f);*/
 
-    let real_output = crc32_round_verify(123, 345);
-    let value = crc32_round(Integer::new_input(f, 0),
-                            Integer::new_constant(345));
-    println!("{:?}", output);
-    println!("{:?}", value.evaluate());
+    let real_output = crc32_round_verify(20, 345);
+    let input = Integer::new_input(&mut f, 0);
+    let mut value = crc32_round(&mut f,
+                            &input,
+                            &Integer::new_constant(345));
+    let eqs = value.xor(&mut f, &Integer::new_constant(real_output));
+    let terms = eqs.as_vec()
+        .iter()
+        .filter_map(|&x| 
+                    match f.is_term_equation(x) {
+                        Some((term, true)) => Some(term),
+                        _ => None,
+                    }).collect();
+    println!("{:?}", real_output);
+    println!("{:?}", value.evaluate(&f, &terms));
+    println!("{:?}", eqs.evaluate(&f, &vec![].into_iter().collect()));
+    print_v(eqs.as_vec());
+    print_v(normal_form(&mut f, eqs.as_vec()));
 }
 
