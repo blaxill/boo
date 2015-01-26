@@ -22,6 +22,8 @@ pub struct Forest {
     adds: HashMap<(NodeId, NodeId), NodeId>,
     muls: HashMap<(NodeId, NodeId), NodeId>,
     divs: HashMap<(NodeId, NodeId), NodeId>,
+    degr: HashMap<(NodeId, usize), NodeId>,
+    lead: HashMap<NodeId, NodeId>,
 }
 
 impl Forest {
@@ -38,6 +40,8 @@ impl Forest {
             adds: HashMap::new(),
             muls: HashMap::new(),
             divs: HashMap::new(),
+            degr: HashMap::new(),
+            lead: HashMap::new(),
         }
     }
 
@@ -234,6 +238,52 @@ impl Forest {
         }
     }
 
+    pub fn degree(&mut self, node: NodeId, d_max: usize) -> usize {
+        if node < 2 || d_max == 0 { return 0; }
+
+        if let Some(memoized) = self.degr.get(&(node, d_max)) {
+            return *memoized;
+        }
+
+        let hi = self.follow_high(node);
+        let lo = self.follow_low(node);
+        let d1 = self.degree(hi, d_max - 1) + 1;
+
+        let memoized = if d1 == d_max {
+                d1
+            } else {
+                let d0 = self.degree(lo, d_max);
+                if d1 > d0 { d1 } else { d0 }
+            };
+        self.degr.insert((node, d_max), memoized);
+        memoized
+    }
+
+    pub fn lead(&mut self, node: NodeId) -> NodeId {
+        let max_degree = 256;
+
+        if node < 2 { return 1; }
+
+        if let Some(memoized) = self.lead.get(&node) {
+            return *memoized;
+        }
+
+        let hi = self.follow_high(node);
+        let lo = self.follow_low(node);
+        let d = self.degree(node, max_degree);
+        let d_then = self.degree(hi, max_degree);
+
+        let memoized = if d == d_then + 1 {
+                let l = self.lead(hi);
+                let v = self.get_variable(node).unwrap();
+                self.get_node_id(Node::Variable(v, l, 0))
+            } else {
+                self.lead(lo)
+            };
+        self.lead.insert(node, memoized);
+        memoized
+    }
+
     pub fn monomial_count(&self, node: NodeId) -> usize {
         match self.nodes[node] {
             Node::False => 0,
@@ -317,11 +367,16 @@ impl Forest {
 
 impl Debug for Forest {
     fn fmt(&self, f :&mut Formatter) -> Result<(), Error> {
-        for (i, n) in self.nodes.iter().enumerate() {
+        /*for (i, n) in self.nodes.iter().enumerate() {
             write!(f, "{}: ", i);
             n.fmt(f);
             writeln!(f, "");
-        }
+        }*/
+        writeln!(f, "adds: {}", self.adds.len());
+        writeln!(f, "muls: {}", self.muls.len());
+        writeln!(f, "divs: {}", self.divs.len());
+        writeln!(f, "degr: {}", self.degr.len());
+        writeln!(f, "lead: {}", self.lead.len());
         write!(f, "")
     }
 }

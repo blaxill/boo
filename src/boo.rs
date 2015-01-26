@@ -6,7 +6,7 @@ mod forest;
 mod grobner;
 mod integer;
 
-fn print_v(v: Vec<usize>) {
+fn print_v(v: &Vec<usize>) {
     print!("[");
     for e in v.iter() {
         print!("{}, ", e);
@@ -26,24 +26,34 @@ fn chain_crc32(f: &mut Forest, m: Vec<Integer>) -> Integer {
             |o, x| crc32_round(f, x, &o))
 }
 
-fn crc32(f: &mut Forest, len: u16) -> Vec<NodeId> {
+fn crc32(f: &mut Forest, len: u16, output: Integer) -> Vec<NodeId> {
     (0..len).flat_map(|x| {
         let input = Integer::new_input(f, x*32);
         let state = Integer::new_input(f, x*32 + len*32);
         let output_state = Integer::new_input(f, (x+1)*32 + len*32);
         let output = crc32_round(f, &input, &state);
 
-        output.xor(f, &output_state).as_vec().into_iter()
+        println!("crc32 step {} of {}", x+1, len);
+
+        if x == len-1 {
+            let mut s = output.xor(f, &output_state).as_vec();
+            let mut o = output_state.xor(f, &output).as_vec();
+            s.append(&mut o);
+            s
+        } else {
+            output.xor(f, &output_state).as_vec()
+        }.into_iter()
     }).collect()
 }
 
 fn main(){
     let mut f = Forest::new();
 
-    let equations = crc32(&mut f, 2);
-    println!("{}", equations.len());
-    print_v(equations.clone());
-    print_v(normal_form(&mut f, equations));
+    let equations = crc32(&mut f, 2, Integer::new_constant(123));
+    let reduced = normal_form(&mut f, equations.clone());
+    println!("{:?} - {}", equations, equations.len());
+
+    println!("{:?} - {}", reduced, reduced.len());
     /*let x = f.get_node_id(Node::Variable(0, 1, 0));
     let y = f.get_node_id(Node::Variable(1, 1, 0));
     let xy = f.mul_by_id(x, y);
