@@ -2,12 +2,12 @@ use std::collections::{HashMap, HashSet};
 use std::collections::hash_map::Entry::{Vacant, Occupied};
 use std::iter::repeat;
 use std::rc::{Rc, Weak, strong_count};
-use std::fmt::{Show, Formatter, Error};
+use std::fmt::{Debug, Formatter, Error};
 
 pub type NodeId = usize;
 pub type Term = u16;
 
-#[derive(Show, Copy, Clone, PartialEq, Eq, Hash)]
+#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
 pub enum Node {
     Variable(Term, NodeId, NodeId),
     True,
@@ -315,7 +315,7 @@ impl Forest {
     }
 }
 
-impl Show for Forest {
+impl Debug for Forest {
     fn fmt(&self, f :&mut Formatter) -> Result<(), Error> {
         for (i, n) in self.nodes.iter().enumerate() {
             write!(f, "{}: ", i);

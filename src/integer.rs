@@ -8,13 +8,13 @@ pub struct Integer {
 
 impl Integer {
     pub fn new_input(f: &mut Forest, offset: Term) -> Integer {
-        Integer{bits: (0..32)
+        Integer{bits: (0u16..32)
             .map(|i| f.term(i+offset))
             .collect()}
     }
 
     pub fn new_constant(value: u32) -> Integer {
-        Integer{bits: (0..32)
+        Integer{bits: (0u16..32)
             .map(|i| ((value>>i)&1) as NodeId )
             .collect()}
     }
@@ -24,14 +24,14 @@ impl Integer {
     }
 
     pub fn xor(&self, f: &mut Forest, other: &Integer) -> Integer {
-        Integer{bits: (0..32).map(|i| {
+        Integer{bits: (0us..32).map(|i| {
                 f.add_by_id(self.bits[i], other.bits[i])
             }).collect()
         }
     }
 
     pub fn shl(&self, rhs: usize) -> Integer {
-        Integer{bits: (0..32).map(|i| {
+        Integer{bits: (0us..32).map(|i| {
                 if i >= rhs { self.bits[i - rhs] }
                 else { 0 }
             }).collect()
@@ -42,7 +42,7 @@ impl Integer {
         let mut bits = Vec::new();
         let mut carry = 0;
 
-        for i in (0..32) {
+        for i in (0us..32) {
             let (lhs, rhs) = (self.bits[i], o.bits[i]);
             let xor = f.add_by_id(lhs, rhs);
             bits.push(f.add_by_id(xor,carry));
@@ -57,7 +57,7 @@ impl Integer {
     pub fn mul(&self, f: &mut Forest, o: &Integer) -> Integer {
         let mut result = Integer::new_constant(0);
 
-        for i in (0..32){
+        for i in (0us..32){
             let mut poly = self.shl(i);
 
             for j in (i..32){

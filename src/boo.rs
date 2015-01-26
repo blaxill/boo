@@ -1,4 +1,4 @@
-use forest::{Forest, Node};
+use forest::{Forest, Node, NodeId};
 use grobner::normal_form;
 use integer::{Integer, crc32_round, crc32_round_verify};
 
@@ -7,14 +7,43 @@ mod grobner;
 mod integer;
 
 fn print_v(v: Vec<usize>) {
+    print!("[");
     for e in v.iter() {
         print!("{}, ", e);
     }
-    println!("");
+    println!("]");
+}
+
+fn chain_crc32_verify(m: Vec<u32>) -> u32 {
+    m.into_iter()
+        .fold(0, |o, x| crc32_round_verify(x, o))
+}
+
+fn chain_crc32(f: &mut Forest, m: Vec<Integer>) -> Integer {
+    m.iter()
+        .fold(
+            Integer::new_constant(0),
+            |o, x| crc32_round(f, x, &o))
+}
+
+fn crc32(f: &mut Forest, len: u16) -> Vec<NodeId> {
+    (0..len).flat_map(|x| {
+        let input = Integer::new_input(f, x*32);
+        let state = Integer::new_input(f, x*32 + len*32);
+        let output_state = Integer::new_input(f, (x+1)*32 + len*32);
+        let output = crc32_round(f, &input, &state);
+
+        output.xor(f, &output_state).as_vec().into_iter()
+    }).collect()
 }
 
 fn main(){
     let mut f = Forest::new();
+
+    let equations = crc32(&mut f, 2);
+    println!("{}", equations.len());
+    print_v(equations.clone());
+    print_v(normal_form(&mut f, equations));
     /*let x = f.get_node_id(Node::Variable(0, 1, 0));
     let y = f.get_node_id(Node::Variable(1, 1, 0));
     let xy = f.mul_by_id(x, y);
@@ -28,11 +57,11 @@ fn main(){
     print_v(normal_form(&mut f, vec![xy, y_1]));
     println!("{:?}", f);*/
 
-    let real_output = crc32_round_verify(20, 345);
-    let input = Integer::new_input(&mut f, 0);
-    let mut value = crc32_round(&mut f,
-                            &input,
-                            &Integer::new_constant(345));
+    /*let input = (0..2).map(|x| Integer::new_input(&mut f, x*32)).collect();
+
+    let real_output = chain_crc32_verify(vec![16, 1]);
+    let mut value = chain_crc32(&mut f, input);
+
     let eqs = value.xor(&mut f, &Integer::new_constant(real_output));
     let terms = eqs.as_vec()
         .iter()
@@ -42,9 +71,9 @@ fn main(){
                         _ => None,
                     }).collect();
     println!("{:?}", real_output);
-    println!("{:?}", value.evaluate(&f, &terms));
+    println!("{:?} | {}", value.evaluate(&f, &terms), terms.len());
     println!("{:?}", eqs.evaluate(&f, &vec![].into_iter().collect()));
     print_v(eqs.as_vec());
-    print_v(normal_form(&mut f, eqs.as_vec()));
+    //print_v(normal_form(&mut f, eqs.as_vec()));*/
 }
 
