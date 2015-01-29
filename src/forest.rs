@@ -3,6 +3,7 @@ use std::collections::hash_map::Entry::{Vacant, Occupied};
 use std::iter::repeat;
 use std::rc::{Rc, Weak, strong_count};
 use std::fmt::{Debug, Formatter, Error};
+use std::cmp::Ordering;
 
 pub type NodeId = usize;
 pub type Term = u16;
@@ -479,6 +480,9 @@ impl Forest {
         let v = self.get_variable(node).unwrap();
 
         Some((v, lo == 1))
+    }
+
+    pub fn cmp(&self, lhs: NodeId, rhs: NodeId) -> Ordering {
     }
 
     pub fn evaluate(&self, node: NodeId, set_terms: &HashSet<Term>) -> bool {

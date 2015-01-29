@@ -119,8 +119,8 @@ pub fn grobner_test(f: &mut Forest, polys: HashSet<NodeId>) -> bool {
 }
 
 pub fn grobner_basis(f: &mut Forest, polys: HashSet<NodeId>) -> HashSet<NodeId> {
-    let mut pairs: HashSet<(NodeId, NodeId)> = HashSet::with_capacity(polys.len()*polys.len());
-    let mut basis: HashSet<_> = basis_reduction(f, polys);
+    let mut pairs: HashSet<(NodeId, NodeId, NodeId)> = HashSet::with_capacity(polys.len()*polys.len());
+    let mut basis: Vec<_> = basis_reduction(f, polys).into_iter().collect();
 
     println!("Starting grobner basis routine");
 
@@ -130,23 +130,24 @@ pub fn grobner_basis(f: &mut Forest, polys: HashSet<NodeId>) -> HashSet<NodeId> 
             if x == y { continue }
             let lead_x = f.lead(x);
             if f.disjoint(lead_x, lead_y) { continue }
-            pairs.insert((x, y));
+            pairs.insert((x, y, f.lcm(lead_x, lead_y)));
         }
     }
 
     while pairs.len() > 0 {
+        pairs.sort_by(|a, b| f.cmp(a, b));
         println!("Pairs: {}\n{:?}", pairs.len(), f);
-        let &(l, r) = pairs.iter().next().unwrap();
-        pairs.remove(&(l, r));
+        let &(l, r, lcm) = pairs.pop();
+        
         let (h, degree_hint) = spoly(f, l, r);
         let h0 = greedy_normal_form(f, basis.iter().cloned(), h, degree_hint);
 
         if h0 != 0 {
             let lead_h0 = f.lead(h0);
-            for &g in basis.iter(){ 
+            for &g in basis.iter(){
                 let lead_g = f.lead(g);
                 if f.disjoint(lead_h0, lead_g) { continue }
-                pairs.insert((g, h0));
+                pairs.push((g, h0, f.lcm(lead_h0, lead_g)));
             }
             basis.insert(h0);
         }
