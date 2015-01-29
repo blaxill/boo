@@ -22,8 +22,10 @@ pub struct Forest {
     adds: HashMap<(NodeId, NodeId), NodeId>,
     muls: HashMap<(NodeId, NodeId), NodeId>,
     divs: HashMap<(NodeId, NodeId), NodeId>,
-    degr: HashMap<(NodeId, usize), NodeId>,
+    cand: HashMap<(NodeId, NodeId), bool>,
+    degr: HashMap<NodeId, NodeId>,
     lead: HashMap<NodeId, NodeId>,
+    disj: HashMap<(NodeId, NodeId), bool>,
 }
 
 impl Forest {
@@ -40,8 +42,10 @@ impl Forest {
             adds: HashMap::new(),
             muls: HashMap::new(),
             divs: HashMap::new(),
+            cand: HashMap::new(),
             degr: HashMap::new(),
             lead: HashMap::new(),
+            disj: HashMap::new(),
         }
     }
 
@@ -238,48 +242,125 @@ impl Forest {
         }
     }
 
-    pub fn degree(&mut self, node: NodeId, d_max: usize) -> usize {
-        if node < 2 || d_max == 0 { return 0; }
+    pub fn cached_degree(&self, node: NodeId) -> Option<usize> {
+        self.degr.get(&node).map(|&x|x)
+    }
 
-        if let Some(memoized) = self.degr.get(&(node, d_max)) {
+    pub fn degree(&mut self, node: NodeId) -> usize {
+        if node < 2 { return 0 }
+        if let Some(memoized) = self.degr.get(&node) {
             return *memoized;
         }
 
         let hi = self.follow_high(node);
         let lo = self.follow_low(node);
-        let d1 = self.degree(hi, d_max - 1) + 1;
+        let d1 = self.degree(hi) + 1;
+        let d0 = self.degree(lo);
 
-        let memoized = if d1 == d_max {
+        let memoized = if d1 > d0 { d1 } else { d0 };
+
+        self.degr.insert(node, memoized);
+        memoized
+    }
+
+    pub fn degree_bounded(&mut self, node: NodeId, mut bound: usize) -> usize {
+        if node < 2 || bound == 0 { return 0; }
+
+        if let Some(memoized) = self.degr.get(&node) {
+            if *memoized > bound { panic!("Bound contradiction!") }
+            return *memoized;
+        }
+
+        let hi = self.follow_high(node);
+        let lo = self.follow_low(node);
+        let d1 = self.degree_bounded(hi, bound - 1) + 1;
+
+        let memoized = if d1 == bound {
                 d1
             } else {
-                let d0 = self.degree(lo, d_max);
+                let d0 = self.degree_bounded(lo, bound);
                 if d1 > d0 { d1 } else { d0 }
             };
-        self.degr.insert((node, d_max), memoized);
+        self.degr.insert(node, memoized);
+        memoized
+    }
+
+
+    pub fn disjoint(&mut self, mut lhs: NodeId, mut rhs: NodeId) -> bool {
+        if lhs < 2 || rhs < 2 { return true }
+
+        if lhs > rhs {
+            let temp = lhs;
+            lhs = rhs;
+            rhs = lhs;
+        }
+
+        if let Some(memoized) = self.disj.get(&(lhs, rhs)) {
+            return *memoized;
+        }
+
+        let l_hi = self.follow_high(lhs);
+        let r_hi = self.follow_high(rhs);
+
+        let lv = self.get_variable(lhs);
+        let rv = self.get_variable(rhs);
+
+        let memoized = if lv == rv { false }
+            else if lv < rv {
+                self.disjoint(l_hi, rhs)
+            } else {
+                self.disjoint(lhs, r_hi)
+            };
+
+        self.disj.insert((lhs, rhs), memoized);
         memoized
     }
 
     pub fn lead(&mut self, node: NodeId) -> NodeId {
-        let max_degree = 256;
-
-        if node < 2 { return 1; }
+        if node < 2 { return node }
 
         if let Some(memoized) = self.lead.get(&node) {
             return *memoized;
         }
 
         let hi = self.follow_high(node);
-        let lo = self.follow_low(node);
-        let d = self.degree(node, max_degree);
-        let d_then = self.degree(hi, max_degree);
+        let d = self.degree(node);
+        let d_hi = self.degree(hi);
 
-        let memoized = if d == d_then + 1 {
+        let memoized = if d == d_hi + 1 {
                 let l = self.lead(hi);
                 let v = self.get_variable(node).unwrap();
                 self.get_node_id(Node::Variable(v, l, 0))
             } else {
+                let lo = self.follow_low(node);
                 self.lead(lo)
             };
+
+        self.lead.insert(node, memoized);
+        memoized
+    }
+
+    pub fn lead_bounded(&mut self, node: NodeId, mut bound: usize) -> NodeId {
+        if node < 2 { return node }
+        if bound == 0 { panic!("Bound not high enough for lead calc!") }
+
+        if let Some(memoized) = self.lead.get(&node) {
+            return *memoized;
+        }
+
+        let hi = self.follow_high(node);
+        let d = self.degree_bounded(node, bound);
+        let d_hi = self.degree_bounded(hi, bound - 1);
+
+        let memoized = if d == d_hi + 1 {
+                let l = self.lead_bounded(hi, bound - 1);
+                let v = self.get_variable(node).unwrap();
+                self.get_node_id(Node::Variable(v, l, 0))
+            } else {
+                let lo = self.follow_low(node);
+                self.lead_bounded(lo, bound)
+            };
+
         self.lead.insert(node, memoized);
         memoized
     }
@@ -292,6 +373,39 @@ impl Forest {
                 self.monomial_count(h) + self.monomial_count(l)
             }
         }
+    }
+
+    pub fn divides(&mut self, lhs_monomial: NodeId, rhs_monomial: NodeId) -> bool {
+        debug_assert!(lhs_monomial > 0);
+        debug_assert!(rhs_monomial > 0);
+
+        if lhs_monomial == 1 { return true; }
+        if rhs_monomial == 1 { return false; }
+
+        if let Some(memoized) = self.cand.get(&(lhs_monomial, rhs_monomial)) {
+            return *memoized;
+        }
+
+        let lo = self.get_variable(lhs_monomial);
+        let ro = self.get_variable(rhs_monomial);
+
+        let memoized = match (lo, ro) {
+            (Some(lv), Some(rv)) => {
+                if lv == rv {
+                    let lhi = self.follow_high(lhs_monomial);
+                    let rhi = self.follow_high(rhs_monomial);
+
+                    self.divides(lhi, rhi)
+                } else if rv < lv {
+                    let hi = self.follow_high(rhs_monomial);
+
+                    self.divides(lhs_monomial, hi)
+                } else { false }
+            }
+            _ => panic!("Unreachable branch in divide!"),
+        };
+        self.cand.insert((lhs_monomial, rhs_monomial), memoized);
+        memoized
     }
 
     pub fn divide_by_monomial(&mut self, poly: NodeId, monomial: NodeId) -> NodeId {
@@ -328,10 +442,32 @@ impl Forest {
             _ => panic!("Unreachable branch in divide!"),
         };
 
-        //if memoized > 1 { assert!(self.follow_high(memoized) != 0); }
+        //if memoized > 1 { debug_assert!(self.follow_high(memoized) != 0); }
 
         self.divs.insert((poly,monomial),memoized);
         memoized
+    }
+
+    pub fn lcm(&mut self, lhs: NodeId, rhs: NodeId) -> NodeId {
+        debug_assert!(lhs != 0);
+        debug_assert!(rhs != 0);
+        if lhs == 1 || rhs == 1 { return 1 }
+
+        let lo = self.get_variable(lhs).unwrap();
+        let ro = self.get_variable(rhs).unwrap();
+
+        if lo < ro {
+            let next = self.follow_high(lhs);
+            self.lcm(next, rhs)
+        } else if ro < lo {
+            let next = self.follow_high(rhs);
+            self.lcm(lhs, next)
+        } else { // if lo == ro {
+            let l_hi = self.follow_high(lhs);
+            let r_hi = self.follow_high(rhs);
+            let lcm = self.lcm(l_hi, r_hi);
+            self.get_node_id(Node::Variable(lo, lcm, 0))
+        }
     }
 
     pub fn is_term_equation(&self, node: NodeId) -> Option<(Term, bool)> {
@@ -375,8 +511,10 @@ impl Debug for Forest {
         writeln!(f, "adds: {}", self.adds.len());
         writeln!(f, "muls: {}", self.muls.len());
         writeln!(f, "divs: {}", self.divs.len());
+        writeln!(f, "cand: {}", self.cand.len());
         writeln!(f, "degr: {}", self.degr.len());
         writeln!(f, "lead: {}", self.lead.len());
+        writeln!(f, "disj: {}", self.disj.len());
         write!(f, "")
     }
 }

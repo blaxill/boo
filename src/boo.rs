@@ -1,5 +1,5 @@
 use forest::{Forest, Node, NodeId};
-use grobner::normal_form;
+use grobner::{basis_reduction, grobner_test, grobner_basis};
 use integer::{Integer, crc32_round, crc32_round_verify};
 
 mod forest;
@@ -49,11 +49,12 @@ fn crc32(f: &mut Forest, len: u16, output: Integer) -> Vec<NodeId> {
 fn main(){
     let mut f = Forest::new();
 
-    let equations = crc32(&mut f, 2, Integer::new_constant(123));
-    let reduced = normal_form(&mut f, equations.clone());
+    let equations = crc32(&mut f, 1, Integer::new_constant(123));
+    let reduced = grobner_basis(&mut f, equations.iter().cloned().collect());
     println!("{:?} - {}", equations, equations.len());
 
     println!("{:?} - {}", reduced, reduced.len());
+    println!("is reduced: {}", grobner_test(&mut f, reduced));
     /*let x = f.get_node_id(Node::Variable(0, 1, 0));
     let y = f.get_node_id(Node::Variable(1, 1, 0));
     let xy = f.mul_by_id(x, y);

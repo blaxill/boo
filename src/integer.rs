@@ -9,7 +9,7 @@ pub struct Integer {
 impl Integer {
     pub fn new_input(f: &mut Forest, offset: Term) -> Integer {
         Integer{bits: (0u16..32)
-            .map(|i| f.term(i+offset))
+            .map(|i| if i <16{ f.term(i+offset)} else { 0 } )
             .collect()}
     }
 
