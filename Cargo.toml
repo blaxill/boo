@@ -16,5 +16,6 @@ debug = false
 rpath = false
 lto = false
 
-[[bin]]
+[lib]
 name = "boo"
+
