@@ -119,8 +119,8 @@ pub fn grobner_test(f: &mut Forest, polys: HashSet<NodeId>) -> bool {
 }
 
 pub fn grobner_basis(f: &mut Forest, polys: HashSet<NodeId>) -> HashSet<NodeId> {
-    let mut pairs: HashSet<(NodeId, NodeId, NodeId)> = HashSet::with_capacity(polys.len()*polys.len());
-    let mut basis: Vec<_> = basis_reduction(f, polys).into_iter().collect();
+    let mut pairs: Vec<(NodeId, NodeId, NodeId)> = Vec::with_capacity(polys.len()*polys.len());
+    let mut basis: Vec<NodeId> = basis_reduction(f, polys).into_iter().collect();
 
     println!("Starting grobner basis routine");
 
@@ -130,14 +130,14 @@ pub fn grobner_basis(f: &mut Forest, polys: HashSet<NodeId>) -> HashSet<NodeId> 
             if x == y { continue }
             let lead_x = f.lead(x);
             if f.disjoint(lead_x, lead_y) { continue }
-            pairs.insert((x, y, f.lcm(lead_x, lead_y)));
+            pairs.push((x, y, f.lcm(lead_x, lead_y)));
         }
     }
 
     while pairs.len() > 0 {
-        pairs.sort_by(|a, b| f.cmp(a, b));
+        pairs.sort_by(|a, b| f.cmp(a.2, b.2));
         println!("Pairs: {}\n{:?}", pairs.len(), f);
-        let &(l, r, lcm) = pairs.pop();
+        let (l, r, lcm) = pairs.pop().unwrap();
         
         let (h, degree_hint) = spoly(f, l, r);
         let h0 = greedy_normal_form(f, basis.iter().cloned(), h, degree_hint);
@@ -149,10 +149,47 @@ pub fn grobner_basis(f: &mut Forest, polys: HashSet<NodeId>) -> HashSet<NodeId> 
                 if f.disjoint(lead_h0, lead_g) { continue }
                 pairs.push((g, h0, f.lcm(lead_h0, lead_g)));
             }
-            basis.insert(h0);
+            basis.push(h0);
         }
     }
-    basis
+    basis.into_iter().collect()
+}
+
+pub fn weighted_length(f: &Forest, p: NodeId) -> usize {
+    f.support_count(p)
+}
+
+pub fn slimgb_strategy1(f: &mut Forest,
+                        f_polys: Vec<NodeId>,
+                        mut r_spolys: Vec<NodeId>) -> (Vec<NodeId>, Vec<NodeId>) {
+    let r_lead: Vec<NodeId> = r_spolys.iter().map(|&x| f.lead(x)).collect();
+    let mut r_sorted: Vec<NodeId> = r_lead.iter().cloned().collect();
+    r_sorted.sort_by(|&a, &b| f.cmp(a,b));
+    r_sorted.dedup();
+
+    for i in (0..r_sorted.len()) {
+        let m = r_sorted[i];
+        let mut done = false;
+
+        for &poly in f_polys.iter() {
+            let f_lead = f.lead(poly);
+            if f.divides(f_lead, m) {
+                done = true;
+                r_spolys = r_spolys.into_iter().map(|x| {
+                    if f.lead(x) == m {
+                        let (y,_ ) = spoly(f, x, poly);
+                        y
+                    } else { 
+                        x
+                    }
+                }).collect();
+            }
+        }
+
+        if done { break }
+    }
+
+    (f_polys, r_spolys)
 }
 
 
