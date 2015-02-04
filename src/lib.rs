@@ -13,6 +13,8 @@ pub use divides::divides;
 pub use monomial::is_monomial;
 pub use divide::divide;
 pub use spoly::spoly;
+pub use least_common_multiple::least_common_multiple;
+pub use slim_grobner_basis::slim_grobner_basis;
 
 mod forest;
 mod memoize;
@@ -24,6 +26,8 @@ mod divides;
 mod monomial;
 mod divide;
 mod spoly;
+mod least_common_multiple;
+mod slim_grobner_basis;
 
 pub struct Cache {
     add: Memoize<(NodeIdx, NodeIdx), NodeIdx>,
@@ -33,6 +37,7 @@ pub struct Cache {
     divides: Memoize<(NodeIdx, NodeIdx), bool>,
     divide: Memoize<(NodeIdx, NodeIdx), NodeIdx>,
     spoly: Memoize<(NodeIdx, NodeIdx), NodeIdx>,
+    least_common_multiple: Memoize<(NodeIdx, NodeIdx), NodeIdx>,
 }
 
 impl Cache {
@@ -45,6 +50,7 @@ impl Cache {
             divides: Memoize::new(),
             divide: Memoize::new(),
             spoly: Memoize::new(),
+            least_common_multiple: Memoize::new(),
         }
     }
 }
