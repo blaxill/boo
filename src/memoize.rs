@@ -3,7 +3,6 @@ use std::collections::hash_map::Hasher;
 use std::hash::Hash;
 use std::fmt::{Debug, Formatter, Error};
 
-/// Intrusive memoizer.
 /// TODO: LRU-type cache, or random dropout for unrecalled items
 pub struct Memoize<I: Hash<Hasher> + Eq, O>
     (HashMap<I, O>);

@@ -6,20 +6,7 @@ pub type NodeIdx = usize;
 pub type Variable = u16;
 
 #[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub enum Node {
-    Node(Variable, NodeIdx, NodeIdx),
-    True,
-    False,
-}
-
-impl Node {
-    pub fn unwrap(&self) -> (Variable, NodeIdx, NodeIdx) {
-        match *self {
-            Node::Node(v, h, l) => (v, h, l),
-            _ => unreachable!()
-        }
-    }
-}
+pub struct Node(pub Variable, pub NodeIdx, pub NodeIdx);
 
 pub struct Forest {
     nodes: Vec<Node>,
@@ -29,29 +16,20 @@ pub struct Forest {
 impl Forest {
     pub fn new() -> Forest {
         Forest {
-            nodes: vec![Node::False, Node::True],
-            locations: {
-                let mut locations = HashMap::new();
-                locations.insert(Node::False, 0);
-                locations.insert(Node::True, 1);
-                locations
-            },
-        }
-    }
-
-    pub fn normalize(&self, node: Node) -> Node {
-        match node {
-            Node::Node(_, 0, l) => self.nodes[l],
-            _ => node,
+            nodes: vec![Node(0, 0, 0), Node(0, 0, 0)],
+            locations: HashMap::new(),
         }
     }
 
     pub fn to_node(&self, idx: NodeIdx) -> Node {
+        debug_assert!(idx > 1);
+
         self.nodes[idx]
     }
 
     pub fn to_node_idx(&mut self, node: Node) -> NodeIdx {
-        let node = self.normalize(node);
+        // If high is 0, remove node by returning low branch.
+        if node.1 == 0 { return node.2 }
 
         match self.locations.entry(node) {
             Vacant(e) => {
@@ -76,26 +54,26 @@ mod test {
     use super::*;
 
     #[test]
-    fn test_size() {
+    fn forest_basic() {
         let mut f = Forest::new();
         assert_eq!(f.nodes.len(), 2);
 
-        f.to_node_idx(Node::Node(0, 1, 0));
+        f.to_node_idx(Node(0, 1, 0));
         assert_eq!(f.nodes.len(), 3);
 
-        f.to_node_idx(Node::Node(1, 1, 0));
+        f.to_node_idx(Node(1, 1, 0));
         assert_eq!(f.nodes.len(), 4);
 
-        f.to_node_idx(Node::Node(2, 1, 0));
+        f.to_node_idx(Node(2, 1, 0));
         assert_eq!(f.nodes.len(), 5);
 
-        f.to_node_idx(Node::Node(2, 0, 0));
+        f.to_node_idx(Node(2, 0, 0));
         assert_eq!(f.nodes.len(), 5);
 
-        f.to_node_idx(Node::Node(2, 1, 0));
+        f.to_node_idx(Node(2, 1, 0));
         assert_eq!(f.nodes.len(), 5);
 
-        f.to_node_idx(Node::Node(0, 1, 1));
+        f.to_node_idx(Node(0, 1, 1));
         assert_eq!(f.nodes.len(), 6);
     }
 }
