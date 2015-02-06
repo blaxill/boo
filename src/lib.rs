@@ -13,6 +13,7 @@ pub use divides::divides;
 pub use monomial::is_monomial;
 pub use divide::divide;
 pub use spoly::spoly;
+pub use compare::compare;
 pub use least_common_multiple::least_common_multiple;
 pub use slim_grobner_basis::slim_grobner_basis;
 
@@ -26,6 +27,7 @@ mod divides;
 mod monomial;
 mod divide;
 mod spoly;
+mod compare;
 mod least_common_multiple;
 mod slim_grobner_basis;
 
