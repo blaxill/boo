@@ -1,7 +1,6 @@
 //#![deny(warnings)]
 #![feature(core)]
 #![feature(hash)]
-#![feature(std_misc)]
 
 pub use forest::{Forest, Node, NodeIdx};
 pub use memoize::Memoize;
@@ -16,6 +15,9 @@ pub use spoly::spoly;
 pub use compare::compare;
 pub use least_common_multiple::least_common_multiple;
 pub use slim_grobner_basis::slim_grobner_basis;
+pub use reduced_grobner_basis::reduced_grobner_basis;
+pub use normal_form::normal_form;
+pub use reduce_basis::reduce_basis;
 
 mod forest;
 mod memoize;
@@ -30,6 +32,9 @@ mod spoly;
 mod compare;
 mod least_common_multiple;
 mod slim_grobner_basis;
+mod reduced_grobner_basis;
+mod normal_form;
+mod reduce_basis;
 
 pub struct Cache {
     add: Memoize<(NodeIdx, NodeIdx), NodeIdx>,

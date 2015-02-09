@@ -52,8 +52,8 @@ pub fn slim_grobner_basis<I, T>(c: &mut Cache,
     filter_p_criteria(c, forest, &mut p);
 
     while p.len() > 0 {
-        println!("p: {:?}", p);
-        println!("f: {:?}", f);
+        //println!("p: {:?}", p);
+        //println!("f: {:?}", f);
         let p_len = p.len();
         //let s = p.split_off(min(p_len-1, 4));
         let mut s = p;
@@ -106,8 +106,9 @@ mod test {
 
         let z_add_y = add(c, f, z, y);
         let z_mul_x = multiply(c, f, z, x);
+        let z_mul_x_add_y = add(c, f, z_mul_x, y);
 
-        let v = vec![x, z_add_y, z_mul_x];
+        let v = vec![x, z_add_y, z_mul_x_add_y];
 
         println!("{:?}", v);
         println!("{:?}", slim_grobner_basis(c, f, v));
