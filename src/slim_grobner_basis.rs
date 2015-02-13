@@ -30,7 +30,7 @@ fn filter_p_criteria(c: &mut Cache,
 pub fn slim_grobner_basis<I, T>(c: &mut Cache,
                                 forest: &mut Forest,
                                 polynomials: I) -> Vec<NodeIdx>
-    where I: IntoIterator<Iter = T>,
+    where I: IntoIterator<IntoIter = T>,
           T: Iterator<Item = NodeIdx>
 {
     let mut f: Vec<NodeIdx> = polynomials.into_iter().collect();
@@ -52,10 +52,7 @@ pub fn slim_grobner_basis<I, T>(c: &mut Cache,
     filter_p_criteria(c, forest, &mut p);
 
     while p.len() > 0 {
-        //println!("p: {:?}", p);
-        //println!("f: {:?}", f);
         let p_len = p.len();
-        //let s = p.split_off(min(p_len-1, 4));
         let mut s = p;
 
         if s.len() > 3 {

@@ -43,7 +43,7 @@ mod test {
     use super::super::multiply::multiply;
 
     #[test]
-    fn slim_grobner_basis_basic() {
+    fn reduce_grobner_basis_basic() {
         let f = &mut Forest::new();
         let c = &mut Cache::new();
 
@@ -57,11 +57,10 @@ mod test {
 
         let v = vec![x, z_add_y, z_mul_x_add_y];
 
-        println!("{:?}", v);
         let slim = slim_grobner_basis(c, f, v);
-        println!("{:?}", slim);
-        println!("{:?}", reduced_grobner_basis(c, f, slim));
+        let mut reduced = reduced_grobner_basis(c, f, slim);
+        reduced.sort();
 
-        panic!();
+        assert_eq!(reduced, vec![x, y, z]);
     }
 }

@@ -3,7 +3,10 @@ use super::Cache;
 use super::divides::divides;
 use super::divide::divide;
 use super::lead::lead;
+use super::compare::compare;
 use super::multiply::multiply;
+use super::add::add;
+use super::terms_containing::terms_containing;
 
 pub fn normal_form(
     c: &mut Cache,
@@ -16,20 +19,21 @@ pub fn normal_form(
     let mut redux = reductee;
     let mut redux_lead = lead(c, f, redux, None);
 
-    for x in basis {
-        if x == 0 { continue }
-        let x_lead = lead(c, f, x, None);
-        if !divides(c, f, x_lead, redux_lead) { continue }
+    'outer: for x in basis {
+        loop {
+            if x == 0 { continue 'outer }
+            let x_lead = lead(c, f, x, None);
+            let mut terms = terms_containing(c, f, redux, x_lead);
 
-        let remainder = divide(c, f, redux, x_lead);
-        if remainder == 0 { continue }
-        let m = multiply(c, f, remainder, x);
-        let result = multiply(c, f, redux, m);
+            if terms.len() == 0 || terms[0] == 0 { continue 'outer }
 
-        if result == 0 { return 0 }
+            terms.sort_by(|&a, &b| compare(c, f, a, b));
 
-        redux = result;
-        redux_lead = lead(c, f, redux, None);
+            let highest = terms[0];
+
+            redux = add(c, f, highest, redux);
+            redux_lead = lead(c, f, redux, None);
+        }
     }
     redux
 }
