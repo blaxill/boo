@@ -11,7 +11,6 @@ fn slim_grobner_basis_reduce(c: &mut Cache,
                              s: Vec<((usize, usize), NodeIdx)>,
                              f: Vec<NodeIdx>)
     -> (Vec<NodeIdx>, Vec<NodeIdx>) {
-    //(Vec::new(), Vec::new())
     let mut r: Vec<NodeIdx> = Vec::new();
 
     for s in s {
