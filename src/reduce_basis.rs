@@ -1,11 +1,7 @@
-use std::collections::HashSet;
-use super::forest::{Forest, Node, NodeIdx};
+use super::forest::{Forest, NodeIdx};
 use super::Cache;
-use super::divides::divides;
-use super::divide::divide;
-use super::lead::lead;
-use super::multiply::multiply;
 use super::normal_form::normal_form;
+use std::collections::HashSet;
 
 pub fn reduce_basis(
     c: &mut Cache,

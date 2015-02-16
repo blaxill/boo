@@ -1,10 +1,7 @@
-use super::forest::{Forest, Node, NodeIdx};
+use super::forest::{Forest, NodeIdx};
 use super::Cache;
-use super::divides::divides;
-use super::divide::divide;
 use super::lead::lead;
 use super::compare::compare;
-use super::multiply::multiply;
 use super::add::add;
 use super::terms_containing::terms_containing;
 
@@ -17,7 +14,6 @@ pub fn normal_form(
     if reductee == 0 { return 0 }
 
     let mut redux = reductee;
-    let mut redux_lead = lead(c, f, redux, None);
 
     'outer: for x in basis {
         loop {
@@ -32,7 +28,6 @@ pub fn normal_form(
             let highest = terms[0];
 
             redux = add(c, f, highest, redux);
-            redux_lead = lead(c, f, redux, None);
         }
     }
     redux

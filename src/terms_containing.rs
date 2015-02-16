@@ -21,10 +21,9 @@ pub fn terms_containing(c: &mut Cache,
     if rhs_var < lhs_var {
         Vec::new()
     } else if rhs_var == lhs_var {
-        let mut terms_hi = terms_containing(c, f, lhs_hi, rhs_hi).map_in_place(
+        terms_containing(c, f, lhs_hi, rhs_hi).map_in_place(
             |t| f.to_node_idx(Node(lhs_var, t, 0))
-            );
-        terms_hi
+            )
     } else {
         let mut terms_hi = terms_containing(c, f, lhs_hi, rhs).map_in_place(
             |t| f.to_node_idx(Node(lhs_var, t, 0))
