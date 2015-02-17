@@ -2,10 +2,10 @@ use super::forest::{Forest, Node, NodeIdx, Variable};
 use super::Cache;
 
 pub fn ordered_replace<F>(c: &mut Cache,
-                       f: &mut Forest,
-                       idx: NodeIdx,
-                       func: F) -> NodeIdx
-    where F: Copy + Fn(Variable) -> Variable
+                          f: &mut Forest,
+                          idx: NodeIdx,
+                          func: &mut F) -> NodeIdx
+    where F: FnMut(Variable) -> Variable
 {
     if idx < 2 { return idx }
 
