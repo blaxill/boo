@@ -1,10 +1,9 @@
-use super::forest::{Forest, Node, NodeIdx};
+use super::forest::{Forest, NodeIdx};
 use super::spoly::spoly;
 use super::Cache;
 use super::compare::compare;
 
 use std::iter::IntoIterator;
-use std::cmp::min;
 
 fn slim_grobner_basis_reduce(c: &mut Cache,
                              forest: &mut Forest,
@@ -51,7 +50,6 @@ pub fn slim_grobner_basis<I, T>(c: &mut Cache,
     filter_p_criteria(c, forest, &mut p);
 
     while p.len() > 0 {
-        let p_len = p.len();
         let mut s = p;
 
         if s.len() > 3 {
@@ -60,7 +58,7 @@ pub fn slim_grobner_basis<I, T>(c: &mut Cache,
             p = Vec::new();
         }
 
-        let (mut r, mut next_f) = slim_grobner_basis_reduce(c, forest, s, f);
+        let (r, mut next_f) = slim_grobner_basis_reduce(c, forest, s, f);
 
         for &r in &r {
             if r == 0 { continue }
@@ -81,7 +79,6 @@ pub fn slim_grobner_basis<I, T>(c: &mut Cache,
 
     f
 }
-
 
 #[cfg(test)]
 mod test {

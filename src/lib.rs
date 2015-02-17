@@ -1,6 +1,8 @@
 //#![deny(warnings)]
 #![feature(core)]
 #![feature(hash)]
+#![feature(std_misc)]
+#![feature(collections)]
 
 pub use forest::{Forest, Node, NodeIdx};
 pub use memoize::Memoize;
@@ -18,7 +20,12 @@ pub use slim_grobner_basis::slim_grobner_basis;
 pub use reduced_grobner_basis::reduced_grobner_basis;
 pub use normal_form::normal_form;
 pub use reduce_basis::reduce_basis;
+<<<<<<< HEAD
 pub use terms_contains_term::terms_contains_term;
+=======
+pub use terms_containing::terms_containing;
+pub use ordered_replace::ordered_replace;
+>>>>>>> FETCH_HEAD
 
 mod forest;
 mod memoize;
@@ -36,7 +43,12 @@ mod slim_grobner_basis;
 mod reduced_grobner_basis;
 mod normal_form;
 mod reduce_basis;
+<<<<<<< HEAD
 mod terms_contains_term;
+=======
+mod terms_containing;
+mod ordered_replace;
+>>>>>>> FETCH_HEAD
 
 pub struct Cache {
     add: Memoize<(NodeIdx, NodeIdx), NodeIdx>,

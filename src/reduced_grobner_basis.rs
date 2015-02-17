@@ -1,4 +1,4 @@
-use super::forest::{Forest, Node, NodeIdx};
+use super::forest::{Forest, NodeIdx};
 use super::Cache;
 use super::divides::divides;
 use super::lead::lead;
@@ -34,6 +34,7 @@ pub fn reduced_grobner_basis(c: &mut Cache,
     reduce_basis(c, f, h)
 }
 
+#[cfg(test)]
 mod test {
     use super::*;
     use super::super::Cache;
