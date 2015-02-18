@@ -23,7 +23,7 @@ fn slim_grobner_basis_reduce(c: &mut Cache,
 fn filter_p_criteria(c: &mut Cache,
                      f: &mut Forest,
                      p: &mut Vec<((usize, usize), NodeIdx)>) {
-    p.sort_by(|&((_,_),a), &((_,_),b)| compare(c, f, a, b));
+    //p.sort_by(|&((_,_),a), &((_,_),b)| compare(c, f, a, b));
 }
 
 pub fn slim_grobner_basis<I, T>(c: &mut Cache,
@@ -114,7 +114,7 @@ mod tests {
         let f = &mut Forest::new();
         let c = &mut Cache::new();
 
-        let mut v: Vec<_> = (0..8).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
+        let mut v: Vec<_> = (0..9).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
 
         for i in (0..v.len()) {
             if i % 3 == 0 { v[i] = add(c, f, v[i], 1); }
