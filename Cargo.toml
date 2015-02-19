@@ -16,6 +16,12 @@ debug = false
 rpath = false
 lto = false
 
+[profile.bench]
+opt-level = 3
+debug = false
+rpath = false
+lto = false
+
 [lib]
 name = "boo"
 

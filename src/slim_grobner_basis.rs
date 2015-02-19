@@ -6,6 +6,8 @@ use super::compare::compare;
 use std::collections::HashSet;
 use std::iter::IntoIterator;
 
+extern crate test;
+
 fn slim_grobner_basis_reduce(c: &mut Cache,
                              f: &mut Forest,
                              s: Vec<(usize, usize)>,
@@ -65,12 +67,13 @@ pub fn slim_grobner_basis<I, T>(c: &mut Cache,
 }
 
 #[cfg(test)]
-mod test {
+mod tests {
     use super::*;
     use super::super::forest::{Forest, Node};
     use super::super::Cache;
     use super::super::add::add;
     use super::super::multiply::multiply;
+    use super::test::Bencher;
 
     #[test]
     fn slim_grobner_basis_basic() {
@@ -90,5 +93,22 @@ mod test {
         println!("{:?}", v);
         println!("{:?}", slim_grobner_basis(c, f, v));
 
+    }
+
+    #[bench]
+    fn bench_slim_grobner_basis_basic(b: &mut Bencher) {
+        let f = &mut Forest::new();
+        let c = &mut Cache::new();
+
+        let mut v: Vec<_> = (0..9).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
+
+        for i in (0..v.len()) {
+            if i % 3 == 0 { v[i] = add(c, f, v[i], 1); }
+            else { v[i] = multiply(c, f, v[i], v[(i-1)%v.len()]) }
+        }
+
+        b.iter(|| {
+            slim_grobner_basis(c, f, v.clone())
+        });
     }
 }

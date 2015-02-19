@@ -3,7 +3,7 @@ use super::Cache;
 use super::lead::lead;
 use super::compare::compare;
 use super::add::add;
-use super::terms_containing::terms_containing;
+use super::terms_contains_term::terms_contains_term;
 
 pub fn normal_form(
     c: &mut Cache,
@@ -19,7 +19,7 @@ pub fn normal_form(
         loop {
             if x == 0 { continue 'outer }
             let x_lead = lead(c, f, x, None);
-            let mut terms = terms_containing(c, f, redux, x_lead);
+            let mut terms = terms_contains_term(c, f, redux, x_lead);
 
             if terms.len() == 0 || terms[0] == 0 { continue 'outer }
 
