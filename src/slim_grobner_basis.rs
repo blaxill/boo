@@ -3,82 +3,65 @@ use super::spoly::spoly;
 use super::Cache;
 use super::compare::compare;
 
+use std::collections::HashSet;
 use std::iter::IntoIterator;
 
 fn slim_grobner_basis_reduce(c: &mut Cache,
-                             forest: &mut Forest,
-                             s: Vec<((usize, usize), NodeIdx)>,
-                             f: Vec<NodeIdx>)
+                             f: &mut Forest,
+                             s: Vec<(usize, usize)>,
+                             g: Vec<NodeIdx>)
     -> (Vec<NodeIdx>, Vec<NodeIdx>) {
-    //(Vec::new(), Vec::new())
     let mut r: Vec<NodeIdx> = Vec::new();
 
     for s in s {
-        r.push(s.1);
+        r.push(spoly(c, f, s.0, s.1));
     }
 
-    (r, f)
+    (r, g)
 }
 
 fn filter_p_criteria(c: &mut Cache,
                      f: &mut Forest,
-                     p: &mut Vec<((usize, usize), NodeIdx)>) {
-    p.sort_by(|&((_,_),a), &((_,_),b)| compare(c, f, a, b));
+                     p: &mut Vec<(usize, usize)>) {
+    //p.sort_by(|&((_,_),a), &((_,_),b)| compare(c, f, a, b));
 }
 
 pub fn slim_grobner_basis<I, T>(c: &mut Cache,
-                                forest: &mut Forest,
+                                f: &mut Forest,
                                 polynomials: I) -> Vec<NodeIdx>
     where I: IntoIterator<IntoIter = T>,
           T: Iterator<Item = NodeIdx>
 {
-    let mut f: Vec<NodeIdx> = polynomials.into_iter().collect();
-    f.sort_by(|&a, &b| compare(c, forest, a, b));
-    f.dedup();
-    let mut p: Vec<((usize, usize), NodeIdx)> = Vec::new();
+    let mut g: HashSet<NodeIdx> = HashSet::new();
+//    g.sort_by(|&a, &b| compare(c, f, a, b));
+ //   g.dedup();
+    let mut p: Vec<(NodeIdx, NodeIdx)> = Vec::new();
 
-    for (i, &x) in f.iter().enumerate() {
-        for (j, &y) in f.iter().enumerate() {
-            if x == y { continue }
-
-            let spoly = spoly(c, forest, x, y);
-            if spoly == 0 { continue }
-
-            p.push(((i, j), spoly));
+    for poly in polynomials {
+        for &g in &g {
+            p.push((g, poly));
         }
+        g.insert(poly);
     }
 
-    filter_p_criteria(c, forest, &mut p);
+    filter_p_criteria(c, f, &mut p);
 
     while p.len() > 0 {
-        let mut s = p;
+        let (lhs, rhs) = p.pop().unwrap();
 
-        if s.len() > 3 {
-            p = s.split_off(3);
-        } else {
-            p = Vec::new();
+        let spoly = spoly(c, f, lhs, rhs);
+        if spoly == 0 { continue }
+
+        if g.contains(&spoly) { continue }
+
+        for &g in &g {
+            p.push((g, spoly));
         }
 
-        let (r, mut next_f) = slim_grobner_basis_reduce(c, forest, s, f);
-
-        for &r in &r {
-            if r == 0 { continue }
-            if let Some(_) = next_f.iter().position(|&x| x==r) { continue }
-
-            let r_idx = next_f.len();
-            for i in (0..next_f.len()){
-                let spoly = spoly(c, forest, next_f[i], r);
-                if spoly == 0 { continue }
-                p.push(((i, r_idx), spoly));
-            }
-            next_f.push(r);
-        }
-
-        f = next_f;
-        filter_p_criteria(c, forest, &mut p);
+        g.insert(spoly);
     }
 
-    f
+    g.into_iter().collect()
 }
 
 #[cfg(test)]
@@ -106,5 +89,6 @@ mod test {
 
         println!("{:?}", v);
         println!("{:?}", slim_grobner_basis(c, f, v));
+
     }
 }
