@@ -2,6 +2,8 @@ use super::forest::{Forest, NodeIdx};
 use super::spoly::spoly;
 use super::Cache;
 use super::compare::compare;
+use super::disjoint::disjoint;
+use super::lead::lead;
 
 use std::collections::HashSet;
 use std::iter::IntoIterator;
@@ -28,6 +30,15 @@ fn filter_p_criteria(c: &mut Cache,
     //p.sort_by(|&((_,_),a), &((_,_),b)| compare(c, f, a, b));
 }
 
+fn filter_pair(c: &mut Cache,
+               f: &mut Forest,
+               p: (usize, usize)) -> bool {
+    let lhs_lead = lead(c, f, lhs);
+    let rhs_lead = lead(c, f, rhs);
+
+    disjoint(c, f, lhs, rhs)
+}
+
 pub fn slim_grobner_basis<I, T>(c: &mut Cache,
                                 f: &mut Forest,
                                 polynomials: I) -> Vec<NodeIdx>
@@ -41,12 +52,11 @@ pub fn slim_grobner_basis<I, T>(c: &mut Cache,
 
     for poly in polynomials {
         for &g in &g {
+            if filter_pair(c, f, g, poly) { continue }
             p.push((g, poly));
         }
         g.insert(poly);
     }
-
-    filter_p_criteria(c, f, &mut p);
 
     while p.len() > 0 {
         let (lhs, rhs) = p.pop().unwrap();
@@ -57,6 +67,7 @@ pub fn slim_grobner_basis<I, T>(c: &mut Cache,
         if g.contains(&spoly) { continue }
 
         for &g in &g {
+            if filter_pair(c, f, g, spoly) { continue }
             p.push((g, spoly));
         }
 
@@ -105,6 +116,11 @@ mod tests {
         for i in (0..v.len()) {
             if i % 3 == 0 { v[i] = add(c, f, v[i], 1); }
             else { v[i] = multiply(c, f, v[i], v[(i-1)%v.len()]) }
+        }
+
+        for i in (0..v.len()) {
+            if i % 5 == 0 { v[i] = add(c, f, v[i], 1); }
+            else { v[i] = multiply(c, f, v[i], v[(i-2)%v.len()]) }
         }
 
         b.iter(|| {
