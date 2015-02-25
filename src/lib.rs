@@ -22,6 +22,7 @@ pub use normal_form::normal_form;
 pub use reduce_basis::reduce_basis;
 pub use terms_contains_term::terms_contains_term;
 pub use ordered_replace::ordered_replace;
+pub use enforce_sparsity::enforce_sparsity;
 
 mod forest;
 mod memoize;
@@ -41,6 +42,7 @@ mod normal_form;
 mod reduce_basis;
 mod terms_contains_term;
 mod ordered_replace;
+mod enforce_sparsity;
 
 pub struct Cache {
     add: Memoize<(NodeIdx, NodeIdx), NodeIdx>,
