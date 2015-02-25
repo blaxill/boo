@@ -58,7 +58,7 @@ mod test {
 
         let v = vec![x, z_add_y, z_mul_x_add_y];
 
-        let slim = slim_grobner_basis(c, f, v);
+        let slim = slim_grobner_basis(c, f, v, true);
         let mut reduced = reduced_grobner_basis(c, f, slim);
         reduced.sort();
 

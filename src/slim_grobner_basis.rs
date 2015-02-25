@@ -6,22 +6,90 @@ use super::lead::lead;
 use super::disjoint::disjoint;
 use super::minmax;
 use super::reduce_basis::reduce_basis;
+use super::divides::divides;
 
 use std::collections::HashSet;
 use std::iter::IntoIterator;
+use std::cmp::min;
 
 fn slim_grobner_basis_reduce(c: &mut Cache,
                              f: &mut Forest,
-                             s: Vec<(usize, usize)>,
-                             g: Vec<NodeIdx>)
-    -> (Vec<NodeIdx>, Vec<NodeIdx>) {
-    let mut r: Vec<NodeIdx> = Vec::new();
+                             r: Vec<NodeIdx>,
+                             g: HashSet<NodeIdx>)
+    -> (Vec<NodeIdx>, HashSet<NodeIdx>) {
+    let mut rm: Vec<_> = r.iter().map(|&x| (x, lead(c, f, x, None)) ).collect();
+    let mut gm: Vec<_> = g.iter().map(|&x| (x, lead(c, f, x, None)) ).collect();
 
-    for s in s {
-        r.push(spoly(c, f, s.0, s.1));
+    'outer: loop {
+        let mut found: Option<(NodeIdx, NodeIdx)> = None;
+
+        rm.sort_by(|&(_, lhs), &(_, rhs)| compare(c, f, lhs, rhs));
+
+        // 2.
+
+        for &(_, m) in &rm {
+            let count = rm.iter()
+                .fold(0, |acc, &(_, lead)|
+                      acc + if m == lead { 1 } else { 0 }
+                );
+            if count > 1 {
+                found = Some((m, 0));
+                break;
+            }
+        }
+
+        if let Some((m, _)) = found {
+            let queue: Vec<_> = rm.clone()
+                .into_iter()
+                .filter(|&(_, idx_lead)| idx_lead == m )
+                .collect();
+
+            rm = rm .into_iter()
+                .filter(|&(_, idx_lead)| idx_lead != m )
+                .collect();
+
+            for i in (0..queue.len()) {
+                for j in (i..queue.len()) {
+                    let spoly = spoly(c, f, queue[i].0, queue[j].0);
+                    if spoly != 0 { rm.push((spoly, lead(c, f, spoly, None))); }
+                }
+            }
+
+            continue 'outer;
+        }
+
+        // 1.
+
+        'inner: for &rm in &rm {
+            for &gm in &gm {
+                if divides(c, f, gm.1, rm.1) {
+                    found = Some((gm.0, rm.1));
+                    break 'inner;
+                }
+            }
+        }
+
+        if let Some((g, m)) = found {
+            rm = rm.into_iter()
+                .filter_map(|(idx, idx_lead)| {
+                    if idx_lead != m { return Some((idx, idx_lead)) }
+
+                    let idx = spoly(c, f, idx, g);
+                    if idx == 0 { return None }
+                    let idx_lead = lead(c, f, idx, None);
+
+                    Some((idx, idx_lead))
+                }).collect();
+
+            continue 'outer;
+        }
+
+        break;
     }
 
-    (r, g)
+    (rm.into_iter().map(|(x, _)|x).collect(),
+        gm.into_iter().map(|(x, _)|x).collect())
+    //(r, g)
 }
 
 fn filter_p_criteria(c: &mut Cache,
@@ -41,11 +109,14 @@ fn filter_pair(c: &mut Cache,
 }
 
 pub fn slim_grobner_basis<I>(c: &mut Cache,
-                                f: &mut Forest,
-                                polynomials: I) -> Vec<NodeIdx>
+                             f: &mut Forest,
+                             polynomials: I,
+                             slim: bool) -> Vec<NodeIdx>
     where I: IntoIterator<Item = NodeIdx>,
 {
-    let mut max_iterations = 30;
+    let mut max_iterations = 3_000_000;
+    let mut max_reduce_set = 50;
+
     let mut g: HashSet<NodeIdx> = HashSet::new();
     let mut p: Vec<(NodeIdx, NodeIdx)> = Vec::new();
     let polynomials: HashSet<NodeIdx> = 
@@ -60,24 +131,48 @@ pub fn slim_grobner_basis<I>(c: &mut Cache,
         g.insert(poly);
     }
 
+    if slim {
+        while p.len() > 0 {
+            let num = min(p.len(), max_reduce_set);
 
-    while p.len() > 0 {
-        let (lhs, rhs) = p.pop().unwrap();
+            let r: Vec<_> = p[..num].iter().map(|&(lhs, rhs)| spoly(c, f, lhs, rhs)).collect();
+            p = p[num..].to_vec();
 
-        let spoly = spoly(c, f, lhs, rhs);
-        if spoly == 0 { continue }
+            let (r, g_new) = slim_grobner_basis_reduce(c, f, r, g);
+            g = g_new;
 
-        if g.contains(&spoly) { continue }
+            for r in r {
+                if g.contains(&r) { continue }
 
-        for &g in &g {
-            if filter_pair(c, f, g, spoly) { continue }
-            p.push(minmax(g, spoly));
+                for &g in &g {
+                    if filter_pair(c, f, g, r) { continue }
+                    p.push(minmax(g, r));
+                }
+
+                g.insert(r);
+            }
+            max_iterations -= 1;
+            if max_iterations == 0 { break }
         }
+    } else {
+        while p.len() > 0 {
+            let (lhs, rhs) = p.pop().unwrap();
 
-        g.insert(spoly);
+            let spoly = spoly(c, f, lhs, rhs);
+            if spoly == 0 { continue }
 
-        max_iterations -= 1;
-        if max_iterations == 0 { break }
+            if g.contains(&spoly) { continue }
+
+            for &g in &g {
+                if filter_pair(c, f, g, spoly) { continue }
+                p.push(minmax(g, spoly));
+            }
+
+            g.insert(spoly);
+
+            max_iterations -= 1;
+            if max_iterations == 0 { break }
+        }
     }
 
     g.into_iter().collect()
@@ -112,16 +207,14 @@ mod tests {
         let v: Vec<NodeIdx> = vec![x, z_add_y, z_mul_x_add_y];
 
         println!("{:?}", v);
-        println!("{:?}", slim_grobner_basis(c, f, v));
+        println!("{:?}", slim_grobner_basis(c, f, v, true));
     }
 
-    #[bench]
-    fn bench_slim_grobner_basis_basic(b: &mut Bencher) {
+
+    fn build_polynomials(c: &mut Cache, f: &mut Forest) -> Vec<NodeIdx> {
         use std::cmp::max;
 
-        let f = &mut Forest::new();
-        let c = &mut Cache::new();
-        let i = 18;
+        let i = 12;
 
         let mut v: Vec<_> = (0..i).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
 
@@ -145,11 +238,31 @@ mod tests {
         }
 
         for i in (0..v.len()) {
-            v[i] = enforce_sparsity(c, f, v[i], 7);
+            v[i] = enforce_sparsity(c, f, v[i], 5);
         }
 
+        v
+    }
+
+    #[bench]
+    fn bench_slim_grobner_basis_basic(b: &mut Bencher) {
+        let f = &mut Forest::new();
+        let c = &mut Cache::new();
+        let mut v = build_polynomials(c, f);
+
         b.iter(|| {
-            slim_grobner_basis(c, f, v.clone())
+            slim_grobner_basis(c, f, v.clone(), true)
+        });
+    }
+
+    #[bench]
+    fn z_bench_grobner_basis_basic(b: &mut Bencher) {
+        let f = &mut Forest::new();
+        let c = &mut Cache::new();
+        let mut v = build_polynomials(c, f);
+
+        b.iter(|| {
+            slim_grobner_basis(c, f, v.clone(), false)
         });
     }
 }
