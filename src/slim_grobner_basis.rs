@@ -4,6 +4,8 @@ use super::Cache;
 use super::compare::compare;
 use super::lead::lead;
 use super::disjoint::disjoint;
+use super::minmax;
+use super::reduce_basis::reduce_basis;
 
 use std::collections::HashSet;
 use std::iter::IntoIterator;
@@ -45,20 +47,24 @@ pub fn slim_grobner_basis<I>(c: &mut Cache,
                                 polynomials: I) -> Vec<NodeIdx>
     where I: IntoIterator<Item = NodeIdx>,
 {
+    let mut max_iterations = 30;
     let mut g: HashSet<NodeIdx> = HashSet::new();
-//    g.sort_by(|&a, &b| compare(c, f, a, b));
- //   g.dedup();
     let mut p: Vec<(NodeIdx, NodeIdx)> = Vec::new();
+    let polynomials: HashSet<NodeIdx> = 
+        reduce_basis(c, f, polynomials.into_iter().collect())
+        .into_iter().collect();
 
     for poly in polynomials {
         for &g in &g {
             if filter_pair(c, f, g, poly) { continue }
-            p.push((g, poly));
+            p.push(minmax(g, poly));
         }
         g.insert(poly);
     }
 
+
     while p.len() > 0 {
+        //println!("{:?}", p);
         let (lhs, rhs) = p.pop().unwrap();
 
         let spoly = spoly(c, f, lhs, rhs);
@@ -68,10 +74,13 @@ pub fn slim_grobner_basis<I>(c: &mut Cache,
 
         for &g in &g {
             if filter_pair(c, f, g, spoly) { continue }
-            p.push((g, spoly));
+            p.push(minmax(g, spoly));
         }
 
         g.insert(spoly);
+
+        max_iterations -= 1;
+        if max_iterations == 0 { break }
     }
 
     g.into_iter().collect()
@@ -105,7 +114,6 @@ mod tests {
 
         println!("{:?}", v);
         println!("{:?}", slim_grobner_basis(c, f, v));
-
     }
 
     #[bench]
@@ -114,7 +122,7 @@ mod tests {
 
         let f = &mut Forest::new();
         let c = &mut Cache::new();
-        let i = 6;
+        let i = 16;
 
         let mut v: Vec<_> = (0..i).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
 
@@ -137,8 +145,8 @@ mod tests {
             }
         }
 
-        for i in (0..v. len()) {
-            v[i] = enforce_sparsity(c, f, v[i], 6);
+        for i in (0..v.len()) {
+            v[i] = enforce_sparsity(c, f, v[i], 7);
         }
 
         println!("Max degree sparse: {}", v
