@@ -2,8 +2,8 @@ use super::forest::{Forest, NodeIdx};
 use super::spoly::spoly;
 use super::Cache;
 use super::compare::compare;
-use super::disjoint::disjoint;
 use super::lead::lead;
+use super::disjoint::disjoint;
 
 use std::collections::HashSet;
 use std::iter::IntoIterator;
@@ -85,6 +85,8 @@ mod tests {
     use super::super::add::add;
     use super::super::multiply::multiply;
     use super::test::Bencher;
+    use super::super::degree;
+    use super::super::enforce_sparsity::enforce_sparsity;
 
     #[test]
     fn slim_grobner_basis_basic() {
@@ -108,9 +110,11 @@ mod tests {
 
     #[bench]
     fn bench_slim_grobner_basis_basic(b: &mut Bencher) {
+        use std::cmp::max;
+
         let f = &mut Forest::new();
         let c = &mut Cache::new();
-        let i = 4;
+        let i = 6;
 
         let mut v: Vec<_> = (0..i).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
 
@@ -131,13 +135,17 @@ mod tests {
                 if i % 5 == 0 { v[i] = add(c, f, v[i], 1); }
                 else { v[i] = multiply(c, f, v[i], v[(i-2)%v.len()]) }
             }
-
-            for i in (0..v.len()) {
-                if i % 2 == 0 { v[i] = multiply(c, f, v[i], v[(i-(v.len()/2))%v.len()]) }
-                if i % 7 == 0 { v[i] = multiply(c, f, v[i], v[(i-(v.len()/2))%v.len()]) }
-                else { v[i] = add(c, f, v[i], 1); }
-            }
         }
+
+        for i in (0..v. len()) {
+            v[i] = enforce_sparsity(c, f, v[i], 6);
+        }
+
+        println!("Max degree sparse: {}", v
+                 .iter()
+                 .fold(0, |acc, &v| 
+                       max(acc, degree(c, f, v, None) )
+                ));
 
         b.iter(|| {
             slim_grobner_basis(c, f, v.clone())
