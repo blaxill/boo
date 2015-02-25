@@ -1,14 +1,13 @@
 use std::collections::HashMap;
-use std::collections::hash_map::Hasher;
 use std::hash::Hash;
 use std::fmt::{Debug, Formatter, Error};
 
 /// TODO: LRU-type cache, or random dropout for unrecalled items
-pub struct Memoize<I: Hash<Hasher> + Eq, O>
+pub struct Memoize<I: Hash + Eq, O>
     (HashMap<I, O>);
 
 impl<I, O> Memoize<I, O>
-    where I: Hash<Hasher> + Eq,
+    where I: Hash + Eq,
           O: Copy
 {
     pub fn new() -> Memoize<I, O> { Memoize(HashMap::new()) }
@@ -22,7 +21,7 @@ impl<I, O> Memoize<I, O>
 }
 
 impl<I, O> Debug for Memoize<I, O>
-    where I: Hash<Hasher> + Eq
+    where I: Hash + Eq
 {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
         write!(f, "{}", self.0.len())

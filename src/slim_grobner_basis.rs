@@ -32,18 +32,18 @@ fn filter_p_criteria(c: &mut Cache,
 
 fn filter_pair(c: &mut Cache,
                f: &mut Forest,
-               p: (usize, usize)) -> bool {
-    let lhs_lead = lead(c, f, lhs);
-    let rhs_lead = lead(c, f, rhs);
+               lhs: NodeIdx,
+               rhs: NodeIdx) -> bool {
+    let lhs_lead = lead(c, f, lhs, None);
+    let rhs_lead = lead(c, f, rhs, None);
 
     disjoint(c, f, lhs, rhs)
 }
 
-pub fn slim_grobner_basis<I, T>(c: &mut Cache,
+pub fn slim_grobner_basis<I>(c: &mut Cache,
                                 f: &mut Forest,
                                 polynomials: I) -> Vec<NodeIdx>
-    where I: IntoIterator<IntoIter = T>,
-          T: Iterator<Item = NodeIdx>
+    where I: IntoIterator<Item = NodeIdx>,
 {
     let mut g: HashSet<NodeIdx> = HashSet::new();
 //    g.sort_by(|&a, &b| compare(c, f, a, b));
@@ -80,7 +80,7 @@ pub fn slim_grobner_basis<I, T>(c: &mut Cache,
 #[cfg(test)]
 mod tests {
     use super::*;
-    use super::super::forest::{Forest, Node};
+    use super::super::forest::{Forest, Node, NodeIdx};
     use super::super::Cache;
     use super::super::add::add;
     use super::super::multiply::multiply;
@@ -99,7 +99,7 @@ mod tests {
         let z_mul_x = multiply(c, f, z, x);
         let z_mul_x_add_y = add(c, f, z_mul_x, y);
 
-        let v = vec![x, z_add_y, z_mul_x_add_y];
+        let v: Vec<NodeIdx> = vec![x, z_add_y, z_mul_x_add_y];
 
         println!("{:?}", v);
         println!("{:?}", slim_grobner_basis(c, f, v));
@@ -110,17 +110,33 @@ mod tests {
     fn bench_slim_grobner_basis_basic(b: &mut Bencher) {
         let f = &mut Forest::new();
         let c = &mut Cache::new();
+        let i = 4;
 
-        let mut v: Vec<_> = (0..9).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
+        let mut v: Vec<_> = (0..i).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
 
-        for i in (0..v.len()) {
-            if i % 3 == 0 { v[i] = add(c, f, v[i], 1); }
-            else { v[i] = multiply(c, f, v[i], v[(i-1)%v.len()]) }
-        }
+        for _ in (0..3){
+            for i in (0..v.len()) {
+                if i % 3 == 0 { v[i] = add(c, f, v[i], 1); }
+                else { v[i] = multiply(c, f, v[i], v[(i-1)%v.len()]) }
+            }
 
-        for i in (0..v.len()) {
-            if i % 5 == 0 { v[i] = add(c, f, v[i], 1); }
-            else { v[i] = multiply(c, f, v[i], v[(i-2)%v.len()]) }
+            for i in (0..v.len()).rev() {
+                for j in (i..v.len()) {
+                    let n = f.to_node_idx(Node(j as u16, 1, 0));
+                    v[i] = add(c, f, v[i], n);
+                }
+            }
+
+            for i in (0..v.len()) {
+                if i % 5 == 0 { v[i] = add(c, f, v[i], 1); }
+                else { v[i] = multiply(c, f, v[i], v[(i-2)%v.len()]) }
+            }
+
+            for i in (0..v.len()) {
+                if i % 2 == 0 { v[i] = multiply(c, f, v[i], v[(i-(v.len()/2))%v.len()]) }
+                if i % 7 == 0 { v[i] = multiply(c, f, v[i], v[(i-(v.len()/2))%v.len()]) }
+                else { v[i] = add(c, f, v[i], 1); }
+            }
         }
 
         b.iter(|| {
