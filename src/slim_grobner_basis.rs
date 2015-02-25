@@ -10,8 +10,6 @@ use super::reduce_basis::reduce_basis;
 use std::collections::HashSet;
 use std::iter::IntoIterator;
 
-extern crate test;
-
 fn slim_grobner_basis_reduce(c: &mut Cache,
                              f: &mut Forest,
                              s: Vec<(usize, usize)>,
@@ -64,7 +62,6 @@ pub fn slim_grobner_basis<I>(c: &mut Cache,
 
 
     while p.len() > 0 {
-        //println!("{:?}", p);
         let (lhs, rhs) = p.pop().unwrap();
 
         let spoly = spoly(c, f, lhs, rhs);
@@ -88,14 +85,16 @@ pub fn slim_grobner_basis<I>(c: &mut Cache,
 
 #[cfg(test)]
 mod tests {
+    extern crate test;
+
     use super::*;
     use super::super::forest::{Forest, Node, NodeIdx};
     use super::super::Cache;
     use super::super::add::add;
     use super::super::multiply::multiply;
-    use super::test::Bencher;
     use super::super::degree;
     use super::super::enforce_sparsity::enforce_sparsity;
+    use self::test::Bencher;
 
     #[test]
     fn slim_grobner_basis_basic() {
@@ -122,7 +121,7 @@ mod tests {
 
         let f = &mut Forest::new();
         let c = &mut Cache::new();
-        let i = 16;
+        let i = 18;
 
         let mut v: Vec<_> = (0..i).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
 
@@ -148,12 +147,6 @@ mod tests {
         for i in (0..v.len()) {
             v[i] = enforce_sparsity(c, f, v[i], 7);
         }
-
-        println!("Max degree sparse: {}", v
-                 .iter()
-                 .fold(0, |acc, &v| 
-                       max(acc, degree(c, f, v, None) )
-                ));
 
         b.iter(|| {
             slim_grobner_basis(c, f, v.clone())
