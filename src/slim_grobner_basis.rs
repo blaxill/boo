@@ -55,6 +55,9 @@ fn slim_grobner_basis_reduce(c: &mut Cache,
                 }
             }
 
+            rm.sort_by(|&(_, lhs), &(_, rhs)| compare(c, f, lhs, rhs));
+            rm.dedup();
+
             continue 'outer;
         }
 
@@ -115,7 +118,7 @@ pub fn slim_grobner_basis<I>(c: &mut Cache,
     where I: IntoIterator<Item = NodeIdx>,
 {
     let mut max_iterations = 3_000_000;
-    let mut max_reduce_set = 50;
+    let mut max_reduce_set = 100;
 
     let mut g: HashSet<NodeIdx> = HashSet::new();
     let mut p: Vec<(NodeIdx, NodeIdx)> = Vec::new();
@@ -214,7 +217,7 @@ mod tests {
     fn build_polynomials(c: &mut Cache, f: &mut Forest) -> Vec<NodeIdx> {
         use std::cmp::max;
 
-        let i = 12;
+        let i = 14;
 
         let mut v: Vec<_> = (0..i).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
 
@@ -238,7 +241,7 @@ mod tests {
         }
 
         for i in (0..v.len()) {
-            v[i] = enforce_sparsity(c, f, v[i], 5);
+            v[i] = enforce_sparsity(c, f, v[i], 6);
         }
 
         v

@@ -76,5 +76,3 @@ pub fn minmax<T: Ord>(lhs: T, rhs: T) -> (T, T) {
     if lhs > rhs { (rhs, lhs) }
     else { (lhs, rhs) }
 }
-
-//fn uid<T>(p: &T) -> usize { (p as * const _) as usize }
