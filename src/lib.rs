@@ -1,6 +1,6 @@
 //#![deny(warnings)]
 #![feature(core)]
-#![feature(hash)]
+#![feature(test)]
 #![feature(std_misc)]
 #![feature(collections)]
 
@@ -22,8 +22,9 @@ pub use normal_form::normal_form;
 pub use reduce_basis::reduce_basis;
 pub use terms_contains_term::terms_contains_term;
 pub use ordered_replace::ordered_replace;
-pub use disjoint::disjoint;
+pub use disjoint::disjoint_lead;
 pub use enforce_sparsity::enforce_sparsity;
+pub use term_count::term_count;
 
 mod forest;
 mod memoize;
@@ -45,6 +46,7 @@ mod terms_contains_term;
 mod ordered_replace;
 mod disjoint;
 mod enforce_sparsity;
+mod term_count;
 
 pub struct Cache {
     add: Memoize<(NodeIdx, NodeIdx), NodeIdx>,

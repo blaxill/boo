@@ -1,5 +1,4 @@
 use super::forest::{Forest, Node, NodeIdx};
-use super::add::add;
 use super::degree::degree;
 use super::Cache;
 

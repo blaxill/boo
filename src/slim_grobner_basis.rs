@@ -3,102 +3,166 @@ use super::spoly::spoly;
 use super::Cache;
 use super::compare::compare;
 use super::lead::lead;
-use super::disjoint::disjoint;
+use super::disjoint::disjoint_lead;
 use super::minmax;
 use super::reduce_basis::reduce_basis;
 use super::divides::divides;
+use super::degree::degree;
 
 use std::collections::HashSet;
 use std::iter::IntoIterator;
-use std::cmp::min;
+use std::cmp::{min, PartialEq, Ord, Ordering};
+
+enum SlimReductionStrategy {
+    LeadDivision(NodeIdx, NodeIdx),
+    GroupReduction(NodeIdx),
+    Replacement(NodeIdx, NodeIdx, NodeIdx),
+}
+
+impl SlimReductionStrategy {
+    fn lead(&self) -> NodeIdx {
+        match *self {
+            SlimReductionStrategy::LeadDivision(_, m) => m,
+            SlimReductionStrategy::GroupReduction(m) => m,
+            SlimReductionStrategy::Replacement(_, _, m) => m,
+        }
+    }
+}
+
+impl PartialEq for SlimReductionStrategy {
+    fn eq(&self, other: &SlimReductionStrategy) -> bool {
+        self.lead() == other.lead()
+    }
+}
+
+impl Eq for SlimReductionStrategy {}
+
+fn slim_strategy_lead(c: &mut Cache,
+                      f: &mut Forest,
+                      rm: &Vec<(NodeIdx, NodeIdx)>,
+                      gm: &Vec<(NodeIdx, NodeIdx)>) -> Option<SlimReductionStrategy> {
+    for &rm in rm {
+        for &gm in gm {
+            if divides(c, f, gm.1, rm.1) {
+                return Some(SlimReductionStrategy::LeadDivision(gm.0, rm.1));
+            }
+        }
+    }
+
+    None
+}
+
+fn slim_strategy_group(c: &mut Cache,
+                       f: &mut Forest,
+                       rm: &Vec<(NodeIdx, NodeIdx)>,
+                       gm: &Vec<(NodeIdx, NodeIdx)>) -> Option<SlimReductionStrategy> {
+    for &(_, m) in rm {
+        let count = rm.iter()
+            .fold(0, |acc, &(_, lead)|
+                  acc + if m == lead { 1 } else { 0 }
+                 );
+        if count > 1 {
+            return Some(SlimReductionStrategy::GroupReduction(m));
+        }
+    }
+
+    None
+}
+
+fn slim_strategy_replace(c: &mut Cache,
+                         f: &mut Forest,
+                         rm: &Vec<(NodeIdx, NodeIdx)>,
+                         gm: &Vec<(NodeIdx, NodeIdx)>) -> Option<SlimReductionStrategy> {
+    for i in (0..rm.len()) {
+        for j in (0..gm.len()) {
+            if rm[i].1 == gm[j].1 &&
+                degree(c, f, gm[j].1, None) > degree(c, f, rm[i].1, None) {
+                return Some(SlimReductionStrategy::Replacement(gm[j].0, rm[j].0, gm[j].1));
+            }
+        }
+    }
+    None
+}
 
 fn slim_grobner_basis_reduce(c: &mut Cache,
                              f: &mut Forest,
                              r: Vec<NodeIdx>,
                              g: HashSet<NodeIdx>)
     -> (Vec<NodeIdx>, HashSet<NodeIdx>) {
+    // Add leads as steps 1., 2. both will need them anyway.
     let mut rm: Vec<_> = r.iter().map(|&x| (x, lead(c, f, x, None)) ).collect();
     let mut gm: Vec<_> = g.iter().map(|&x| (x, lead(c, f, x, None)) ).collect();
 
+
     'outer: loop {
-        let mut found: Option<(NodeIdx, NodeIdx)> = None;
-
         rm.sort_by(|&(_, lhs), &(_, rhs)| compare(c, f, lhs, rhs));
+        let mut choices: Vec<SlimReductionStrategy> = Vec::new();
 
-        // 2.
+        if let Some(x) = slim_strategy_replace(c, f, &rm, &gm) { choices.push(x); }
+        if let Some(x) = slim_strategy_group(c, f, &rm, &gm) { choices.push(x); }
+        if let Some(x) = slim_strategy_lead(c, f, &rm, &gm) { choices.push(x); }
 
-        for &(_, m) in &rm {
-            let count = rm.iter()
-                .fold(0, |acc, &(_, lead)|
-                      acc + if m == lead { 1 } else { 0 }
-                );
-            if count > 1 {
-                found = Some((m, 0));
-                break;
-            }
-        }
+        if choices.len() == 0 { break }
+        choices.sort_by(|a, b| compare(c, f, a.lead(), b.lead()));
 
-        if let Some((m, _)) = found {
-            let queue: Vec<_> = rm.clone()
-                .into_iter()
-                .filter(|&(_, idx_lead)| idx_lead == m )
-                .collect();
+        match choices[0] {
+            SlimReductionStrategy::GroupReduction(m) => {
+                let queue: Vec<_> = rm.clone()
+                    .into_iter()
+                    .filter(|&(_, idx_lead)| idx_lead == m )
+                    .collect();
 
-            rm = rm .into_iter()
-                .filter(|&(_, idx_lead)| idx_lead != m )
-                .collect();
+                rm = rm .into_iter()
+                    .filter(|&(_, idx_lead)| idx_lead != m )
+                    .collect();
 
-            for i in (0..queue.len()) {
-                for j in (i..queue.len()) {
-                    let spoly = spoly(c, f, queue[i].0, queue[j].0);
-                    if spoly != 0 { rm.push((spoly, lead(c, f, spoly, None))); }
+                for i in (0..queue.len()) {
+                    for j in (i..queue.len()) {
+                        let spoly = spoly(c, f, queue[i].0, queue[j].0);
+                        if spoly != 0 { rm.push((spoly, lead(c, f, spoly, None))); }
+                    }
                 }
-            }
 
-            rm.sort_by(|&(_, lhs), &(_, rhs)| compare(c, f, lhs, rhs));
-            rm.dedup();
+                rm.sort_by(|&(_, lhs), &(_, rhs)| compare(c, f, lhs, rhs));
+                rm.dedup();
+            },
+            SlimReductionStrategy::LeadDivision(g, m) => {
+                rm = rm.into_iter()
+                    .filter_map(|(idx, idx_lead)| {
+                        if idx_lead != m { return Some((idx, idx_lead)) }
 
-            continue 'outer;
-        }
+                        let idx = spoly(c, f, idx, g);
+                        if idx == 0 { return None }
+                        let idx_lead = lead(c, f, idx, None);
 
-        // 1.
+                        Some((idx, idx_lead))
+                    }).collect();
 
-        'inner: for &rm in &rm {
-            for &gm in &gm {
-                if divides(c, f, gm.1, rm.1) {
-                    found = Some((gm.0, rm.1));
-                    break 'inner;
+            },
+            SlimReductionStrategy::Replacement(g, r, m) => {
+                // TODO: replace pairs in parent function!!!
+                for gm in &mut gm {
+                    if gm.0 == g {
+                        gm.0 = r;
+                        gm.1 = m;
+                    }
                 }
-            }
+                rm = rm.into_iter()
+                    .filter_map(|(idx, idx_lead)| {
+                        if idx != r { return Some((idx, idx_lead)) }
+
+                        let idx = spoly(c, f, idx, g);
+                        if idx == 0 { return None }
+                        let idx_lead = lead(c, f, idx, None);
+
+                        Some((idx, idx_lead))
+                    }).collect();
+            },
         }
-
-        if let Some((g, m)) = found {
-            rm = rm.into_iter()
-                .filter_map(|(idx, idx_lead)| {
-                    if idx_lead != m { return Some((idx, idx_lead)) }
-
-                    let idx = spoly(c, f, idx, g);
-                    if idx == 0 { return None }
-                    let idx_lead = lead(c, f, idx, None);
-
-                    Some((idx, idx_lead))
-                }).collect();
-
-            continue 'outer;
-        }
-
-        break;
     }
 
     (rm.into_iter().map(|(x, _)|x).collect(),
         gm.into_iter().map(|(x, _)|x).collect())
-    //(r, g)
-}
-
-fn filter_p_criteria(c: &mut Cache,
-                     f: &mut Forest,
-                     p: &mut Vec<(usize, usize)>) {
-    //p.sort_by(|&((_,_),a), &((_,_),b)| compare(c, f, a, b));
 }
 
 fn filter_pair(c: &mut Cache,
@@ -108,23 +172,23 @@ fn filter_pair(c: &mut Cache,
     let lhs_lead = lead(c, f, lhs, None);
     let rhs_lead = lead(c, f, rhs, None);
 
-    disjoint(c, f, lhs, rhs)
+    disjoint_lead(c, f, lhs_lead, rhs_lead)
 }
 
 pub fn slim_grobner_basis<I>(c: &mut Cache,
                              f: &mut Forest,
                              polynomials: I,
-                             slim: bool) -> Vec<NodeIdx>
+                             max_reduce_set: usize,
+                             max_iterations: Option<usize>) -> Vec<NodeIdx>
     where I: IntoIterator<Item = NodeIdx>,
 {
-    let mut max_iterations = 3_000_000;
-    let mut max_reduce_set = 100;
+    if max_reduce_set == 0 { panic!() }
+
+    let mut max_iterations = max_iterations;
 
     let mut g: HashSet<NodeIdx> = HashSet::new();
     let mut p: Vec<(NodeIdx, NodeIdx)> = Vec::new();
-    let polynomials: HashSet<NodeIdx> = 
-        reduce_basis(c, f, polynomials.into_iter().collect())
-        .into_iter().collect();
+    let polynomials: HashSet<NodeIdx> = polynomials.into_iter().collect();
 
     for poly in polynomials {
         for &g in &g {
@@ -134,48 +198,31 @@ pub fn slim_grobner_basis<I>(c: &mut Cache,
         g.insert(poly);
     }
 
-    if slim {
-        while p.len() > 0 {
-            let num = min(p.len(), max_reduce_set);
+    while p.len() > 0 {
+        let num = min(p.len(), max_reduce_set);
 
-            let r: Vec<_> = p[..num].iter().map(|&(lhs, rhs)| spoly(c, f, lhs, rhs)).collect();
-            p = p[num..].to_vec();
-
-            let (r, g_new) = slim_grobner_basis_reduce(c, f, r, g);
-            g = g_new;
-
-            for r in r {
-                if g.contains(&r) { continue }
-
-                for &g in &g {
-                    if filter_pair(c, f, g, r) { continue }
-                    p.push(minmax(g, r));
-                }
-
-                g.insert(r);
-            }
-            max_iterations -= 1;
-            if max_iterations == 0 { break }
-        }
-    } else {
-        while p.len() > 0 {
-            let (lhs, rhs) = p.pop().unwrap();
-
+        let r: Vec<_> = p[..num].iter().filter_map(|&(lhs, rhs)|{
             let spoly = spoly(c, f, lhs, rhs);
-            if spoly == 0 { continue }
+            if spoly == 0 { None }
+            else { Some(spoly) }
+        }).collect();
+        p = p[num..].to_vec();
 
-            if g.contains(&spoly) { continue }
+        let (r, g_new) = slim_grobner_basis_reduce(c, f, r, g);
+        g = g_new;
+
+        for r in r {
+            if g.contains(&r) { continue }
 
             for &g in &g {
-                if filter_pair(c, f, g, spoly) { continue }
-                p.push(minmax(g, spoly));
+                if filter_pair(c, f, g, r) { continue }
+                p.push(minmax(g, r));
             }
 
-            g.insert(spoly);
-
-            max_iterations -= 1;
-            if max_iterations == 0 { break }
+            g.insert(r);
         }
+        max_iterations = max_iterations.map(|x| x - 1);
+        if let Some(x) = max_iterations { if x == 0 { break } }
     }
 
     g.into_iter().collect()
@@ -190,7 +237,6 @@ mod tests {
     use super::super::Cache;
     use super::super::add::add;
     use super::super::multiply::multiply;
-    use super::super::degree;
     use super::super::enforce_sparsity::enforce_sparsity;
     use self::test::Bencher;
 
@@ -210,14 +256,12 @@ mod tests {
         let v: Vec<NodeIdx> = vec![x, z_add_y, z_mul_x_add_y];
 
         println!("{:?}", v);
-        println!("{:?}", slim_grobner_basis(c, f, v, true));
+        println!("{:?}", slim_grobner_basis(c, f, v, 10, None));
     }
 
 
     fn build_polynomials(c: &mut Cache, f: &mut Forest) -> Vec<NodeIdx> {
-        use std::cmp::max;
-
-        let i = 14;
+        let i = 13;
 
         let mut v: Vec<_> = (0..i).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
 
@@ -251,10 +295,10 @@ mod tests {
     fn bench_slim_grobner_basis_basic(b: &mut Bencher) {
         let f = &mut Forest::new();
         let c = &mut Cache::new();
-        let mut v = build_polynomials(c, f);
+        let v = build_polynomials(c, f);
 
         b.iter(|| {
-            slim_grobner_basis(c, f, v.clone(), true)
+            slim_grobner_basis(c, f, v.clone(), 35, Some(1_000_000_000))
         });
     }
 
@@ -262,10 +306,10 @@ mod tests {
     fn z_bench_grobner_basis_basic(b: &mut Bencher) {
         let f = &mut Forest::new();
         let c = &mut Cache::new();
-        let mut v = build_polynomials(c, f);
+        let v = build_polynomials(c, f);
 
         b.iter(|| {
-            slim_grobner_basis(c, f, v.clone(), false)
+            slim_grobner_basis(c, f, v.clone(), 1, Some(1_000_000_000))
         });
     }
 }

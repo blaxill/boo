@@ -8,7 +8,7 @@ pub fn divides(c: &mut Cache,
                rhs: NodeIdx) -> bool
 {
     debug_assert!(lhs > 0);
-    debug_assert!(rhs > 0);
+    //debug_assert!(rhs > 0);
 
     if cfg!(not(ndebug)) {
         assert!(is_monomial(f, lhs));
@@ -16,7 +16,7 @@ pub fn divides(c: &mut Cache,
     }
 
     if lhs == 1 { return true }
-    if rhs == 1 { return false }
+    if rhs <= 1 { return false }
 
     if let Some(result) = c.divides.get(&(lhs, rhs)) {
         return result

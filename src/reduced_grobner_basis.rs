@@ -58,10 +58,19 @@ mod test {
 
         let v = vec![x, z_add_y, z_mul_x_add_y];
 
-        let slim = slim_grobner_basis(c, f, v, true);
+        let slim = slim_grobner_basis(c, f, v.clone(), 1, None);
         let mut reduced = reduced_grobner_basis(c, f, slim);
         reduced.sort();
+        assert_eq!(reduced, vec![x, y, z]);
 
+        let slim = slim_grobner_basis(c, f, v.clone(), 5, None);
+        let mut reduced = reduced_grobner_basis(c, f, slim);
+        reduced.sort();
+        assert_eq!(reduced, vec![x, y, z]);
+
+        let slim = slim_grobner_basis(c, f, v.clone(), 50, None);
+        let mut reduced = reduced_grobner_basis(c, f, slim);
+        reduced.sort();
         assert_eq!(reduced, vec![x, y, z]);
     }
 }
