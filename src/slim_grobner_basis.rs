@@ -87,7 +87,8 @@ fn slim_strategy_replace(c: &mut Cache,
 fn slim_grobner_basis_reduce(c: &mut Cache,
                              f: &mut Forest,
                              r: Vec<NodeIdx>,
-                             g: HashSet<NodeIdx>)
+                             g: HashSet<NodeIdx>,
+                             p: &mut Vec<(NodeIdx, NodeIdx)>)
     -> (Vec<NodeIdx>, HashSet<NodeIdx>) {
     // Add leads as steps 1., 2. both will need them anyway.
     let mut rm: Vec<_> = r.iter().map(|&x| (x, lead(c, f, x, None)) ).collect();
