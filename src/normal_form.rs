@@ -4,18 +4,20 @@ use super::lead::lead;
 use super::compare::compare;
 use super::add::add;
 use super::terms_contains_term::terms_contains_term;
+use std::iter::IntoIterator;
 
-pub fn normal_form(
+pub fn normal_form<'a, I>(
     c: &mut Cache,
     f: &mut Forest,
     reductee: NodeIdx,
-    basis: Vec<NodeIdx>) -> NodeIdx
+    basis: I) -> NodeIdx
+    where I: IntoIterator<Item = &'a NodeIdx>,
 {
     if reductee == 0 { return 0 }
 
     let mut redux = reductee;
 
-    'outer: for x in basis {
+    'outer: for &x in basis {
         loop {
             if x == 0 { continue 'outer }
             let x_lead = lead(c, f, x, None);
