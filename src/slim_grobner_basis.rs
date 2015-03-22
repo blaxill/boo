@@ -367,7 +367,7 @@ mod tests {
         let f = &mut Forest::new();
         let c = &mut Cache::new();
         f.sparsity = 12;
-        let v = build_polynomials(c, f, 32, 12);
+        let v = build_polynomials(c, f, 22, 12);
         //let mut slim: Vec<NodeIdx> = Vec::new();
         b.iter(|| {
             slim_grobner_basis(c, f, v.clone(), 40, Some(1_000_000))

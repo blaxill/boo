@@ -1,6 +1,7 @@
 use std::collections::HashMap;
 use std::collections::hash_map::Entry::{Vacant, Occupied};
 use std::fmt::{Debug, Formatter, Error};
+use std::cmp::max;
 
 pub type NodeIdx = usize;
 pub type Variable = u16;
@@ -10,6 +11,7 @@ pub struct Node(pub Variable, pub NodeIdx, pub NodeIdx);
 
 pub struct Forest {
     nodes: Vec<Node>,
+    degrees: Vec<usize>,
     locations: HashMap<Node, NodeIdx>,
     pub sparsity: usize,
 }
@@ -18,6 +20,7 @@ impl Forest {
     pub fn new() -> Forest {
         Forest {
             nodes: vec![Node(0, 0, 0), Node(0, 0, 0)],
+            degrees: vec![0, 0],
             locations: HashMap::new(),
             sparsity: 100000,
         }
@@ -29,14 +32,23 @@ impl Forest {
         self.nodes[idx]
     }
 
+    pub fn degree(&self, idx: NodeIdx) -> usize { self.degrees[idx] }
+
     pub fn to_node_idx(&mut self, node: Node) -> NodeIdx {
-        // If high is 0, remove node by returning low branch.
-        if node.1 == 0 { return node.2 }
+        // If high idx is 0 or sparsity limit is hit,
+        // remove node by returning low branch.
+        if node.1 == 0 || self.degrees[node.1] + 1 == self.sparsity {
+            return node.2
+        }
 
         match self.locations.entry(node) {
             Vacant(e) => {
                 let id = self.nodes.len();
+
+                let hi_sparsity = self.degrees[node.1];
+                let lo_sparsity = self.degrees[node.2];
                 self.nodes.push(node);
+                self.degrees.push(max(hi_sparsity + 1, lo_sparsity));
                 e.insert(id);
                 id
             },

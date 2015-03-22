@@ -1,30 +1,13 @@
 use super::forest::{Forest, Node, NodeIdx};
 use super::Cache;
-use std::cmp::max;
 
+///TODO: Strip from codebase completely.
 pub fn degree(c: &mut Cache,
               f: &mut Forest,
               idx: NodeIdx,
               bound: Option<usize>) -> NodeIdx
 {
-    if idx < 2 { return 0 }
-
-    if let Some(result) = c.degree.get(&idx) {
-        return result
-    }
-
-    let Node(_, hi, lo) = f.to_node(idx);
-    let hi_degree = degree(c, f, hi, bound.map(|x|x-1)) + 1;
-
-    let result = match bound {
-            Some(bound) if bound == hi_degree => hi_degree,
-            _ => {
-                let lo_degree = degree(c, f, lo, None);
-                max(hi_degree, lo_degree)
-            }
-        };
-
-    c.degree.set(idx, result)
+    return f.degree(idx);
 }
 
 
