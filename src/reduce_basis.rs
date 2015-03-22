@@ -16,7 +16,7 @@ pub fn reduce_basis(
         for candidate_index in (0..candidates.len()) {
             let candidate: NodeIdx = candidates[candidate_index];
             basis.remove(&candidate);
-            let reduced = normal_form(c, f, candidate, basis.iter().cloned().collect());
+            let reduced = normal_form(c, f, candidate, &basis);
             if reduced == 0 { continue }
             basis.insert(reduced);
             if reduced != candidate { continue 'restart }

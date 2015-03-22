@@ -1,18 +1,21 @@
 use super::forest::{Forest, NodeIdx};
 use super::spoly::spoly;
 use super::Cache;
-use super::compare::compare;
+use super::compare::{compare, reverse_compare};
 use super::lead::lead;
 use super::disjoint::disjoint_lead;
 use super::minmax;
 use super::reduce_basis::reduce_basis;
 use super::divides::divides;
-use super::degree::degree;
+use super::term_count::term_count;
+use super::normal_form::normal_form;
+use super::least_common_multiple::least_common_multiple;
 
 use std::collections::HashSet;
 use std::iter::IntoIterator;
 use std::cmp::{min, PartialEq, Ord, Ordering};
 
+#[derive(Debug)]
 enum SlimReductionStrategy {
     LeadDivision(NodeIdx, NodeIdx),
     GroupReduction(NodeIdx),
@@ -76,7 +79,8 @@ fn slim_strategy_replace(c: &mut Cache,
     for i in (0..rm.len()) {
         for j in (0..gm.len()) {
             if rm[i].1 == gm[j].1 &&
-                degree(c, f, gm[j].1, None) > degree(c, f, rm[i].1, None) {
+                term_count(c, f, gm[j].1) > term_count(c, f, rm[i].1) {
+                    println!("Possible replacement");
                 return Some(SlimReductionStrategy::Replacement(gm[j].0, rm[j].0, gm[j].1));
             }
         }
@@ -88,15 +92,14 @@ fn slim_grobner_basis_reduce(c: &mut Cache,
                              f: &mut Forest,
                              r: Vec<NodeIdx>,
                              g: HashSet<NodeIdx>,
-                             p: &mut Vec<(NodeIdx, NodeIdx)>)
+                             pairs: &mut Vec<(NodeIdx, NodeIdx)>)
     -> (Vec<NodeIdx>, HashSet<NodeIdx>) {
     // Add leads as steps 1., 2. both will need them anyway.
     let mut rm: Vec<_> = r.iter().map(|&x| (x, lead(c, f, x, None)) ).collect();
     let mut gm: Vec<_> = g.iter().map(|&x| (x, lead(c, f, x, None)) ).collect();
 
-
+    rm.sort_by(|&(_, lhs), &(_, rhs)| compare(c, f, lhs, rhs));
     'outer: loop {
-        rm.sort_by(|&(_, lhs), &(_, rhs)| compare(c, f, lhs, rhs));
         let mut choices: Vec<SlimReductionStrategy> = Vec::new();
 
         if let Some(x) = slim_strategy_replace(c, f, &rm, &gm) { choices.push(x); }
@@ -141,7 +144,7 @@ fn slim_grobner_basis_reduce(c: &mut Cache,
 
             },
             SlimReductionStrategy::Replacement(g, r, m) => {
-                // TODO: replace pairs in parent function!!!
+                println!("Replacement!");
                 for gm in &mut gm {
                     if gm.0 == g {
                         gm.0 = r;
@@ -158,6 +161,12 @@ fn slim_grobner_basis_reduce(c: &mut Cache,
 
                         Some((idx, idx_lead))
                     }).collect();
+                for i in (0..pairs.len()){//.map_in_place(|(mut lhs, mut rhs)| {
+                    let (mut lhs, mut rhs) = pairs[i];
+                    if lhs == g { lhs = r; }
+                    if rhs == g { rhs = r; }
+                    pairs[i] = minmax(lhs, rhs);
+                }
             },
         }
     }
@@ -176,6 +185,32 @@ fn filter_pair(c: &mut Cache,
     disjoint_lead(c, f, lhs_lead, rhs_lead)
 }
 
+pub fn is_grobner_basis(c: &mut Cache,
+                     f: &mut Forest,
+                     polynomials: Vec<NodeIdx>) -> bool {
+    let mut g: HashSet<NodeIdx> = HashSet::new();
+    let mut p: Vec<(NodeIdx, NodeIdx)> = Vec::new();
+
+    for &poly in &polynomials {
+        for &g in &g {
+            if poly == g { continue }
+            p.push(minmax(g, poly));
+        }
+        g.insert(poly);
+    }
+
+    while p.len() > 0 {
+        let (lhs, rhs) = p.pop().unwrap();
+
+        let spoly = spoly(c, f, lhs, rhs);
+        let spoly = normal_form(c, f, spoly, &polynomials);
+
+        if spoly > 0 { return false }
+    }
+
+    true
+}
+
 pub fn slim_grobner_basis<I>(c: &mut Cache,
                              f: &mut Forest,
                              polynomials: I,
@@ -183,6 +218,7 @@ pub fn slim_grobner_basis<I>(c: &mut Cache,
                              max_iterations: Option<usize>) -> Vec<NodeIdx>
     where I: IntoIterator<Item = NodeIdx>,
 {
+    //basis reduction
     if max_reduce_set == 0 { panic!() }
 
     let mut max_iterations = max_iterations;
@@ -190,6 +226,8 @@ pub fn slim_grobner_basis<I>(c: &mut Cache,
     let mut g: HashSet<NodeIdx> = HashSet::new();
     let mut p: Vec<(NodeIdx, NodeIdx)> = Vec::new();
     let polynomials: HashSet<NodeIdx> = polynomials.into_iter().collect();
+        /*reduce_basis(c, f, polynomials.into_iter().collect())
+        .into_iter().collect();*/
 
     for poly in polynomials {
         for &g in &g {
@@ -202,21 +240,35 @@ pub fn slim_grobner_basis<I>(c: &mut Cache,
     while p.len() > 0 {
         let num = min(p.len(), max_reduce_set);
 
+        /*p.sort_by(|&a, &b| {
+            let a_leads = (lead(c, f, a.0, None), lead(c, f, a.1, None));
+            let b_leads = (lead(c, f, b.0, None), lead(c, f, b.1, None));
+            let a_lcm = least_common_multiple(c, f, a_leads.0, a_leads.1);
+            let b_lcm = least_common_multiple(c, f, b_leads.0, b_leads.1);
+
+            reverse_compare(c, f, a_lcm, b_lcm)
+       });*/
+
         let r: Vec<_> = p[..num].iter().filter_map(|&(lhs, rhs)|{
             let spoly = spoly(c, f, lhs, rhs);
-            if spoly == 0 { None }
-            else { Some(spoly) }
+            if spoly == 0 { return None; }
+            //let spoly = normal_form(c, f, spoly, &g);
+            //if spoly == 0 { return None; }
+            Some(spoly)
         }).collect();
+
         p = p[num..].to_vec();
 
-        let (r, g_new) = slim_grobner_basis_reduce(c, f, r, g);
+        let (r, g_new) = slim_grobner_basis_reduce(c, f, r, g, &mut p);
         g = g_new;
 
         for r in r {
+            //let r = normal_form(c, f, r, &g);
+            if r == 0 { continue }
             if g.contains(&r) { continue }
 
             for &g in &g {
-                if filter_pair(c, f, g, r) { continue }
+                if filter_pair(c, f, r, g) { continue }
                 p.push(minmax(g, r));
             }
 
@@ -239,6 +291,7 @@ mod tests {
     use super::super::add::add;
     use super::super::multiply::multiply;
     use super::super::enforce_sparsity::enforce_sparsity;
+    use super::super::reduced_grobner_basis::reduced_grobner_basis;
     use self::test::Bencher;
 
     #[test]
@@ -249,20 +302,35 @@ mod tests {
         let x = f.to_node_idx(Node(0, 1, 0));
         let y = f.to_node_idx(Node(1, 1, 0));
         let z = f.to_node_idx(Node(2, 1, 0));
+        let w = f.to_node_idx(Node(3, 1, 0));
 
         let z_add_y = add(c, f, z, y);
+        let w_add_z = add(c, f, z, w);
         let z_mul_x = multiply(c, f, z, x);
         let z_mul_x_add_y = add(c, f, z_mul_x, y);
+        let zxw = multiply(c, f, z_mul_x, w);
+        let zxw_add_y = add(c, f, zxw, y);
 
         let v: Vec<NodeIdx> = vec![x, z_add_y, z_mul_x_add_y];
+        let slim = slim_grobner_basis(c, f, v, 1, None);
+        let reduced = reduced_grobner_basis(c, f, slim);
+        assert!(is_grobner_basis(c, f, reduced .clone()));
 
-        println!("{:?}", v);
-        println!("{:?}", slim_grobner_basis(c, f, v, 10, None));
+        let v: Vec<NodeIdx> = vec![zxw_add_y, z_add_y, z_mul_x_add_y, w_add_z];
+        let slim = slim_grobner_basis(c, f, v, 1, None);
+        let reduced = reduced_grobner_basis(c, f, slim);
+        assert!(is_grobner_basis(c, f, reduced.clone()));
+
+        let v = build_polynomials(c, f, 4, 6);
+        let slim = slim_grobner_basis(c, f, v.clone(), 40, Some(1_000_000_000));
+        let reduced = reduced_grobner_basis(c, f, slim);
+        assert!(is_grobner_basis(c, f, reduced.clone()));
     }
 
-
-    fn build_polynomials(c: &mut Cache, f: &mut Forest) -> Vec<NodeIdx> {
-        let i = 13;
+    fn build_polynomials(c: &mut Cache, f: &mut Forest,
+                         size: u16,
+                         sparsity: usize) -> Vec<NodeIdx> {
+        let i = size;
 
         let mut v: Vec<_> = (0..i).map(|x| f.to_node_idx(Node(x, 1, 0))).collect();
 
@@ -286,7 +354,7 @@ mod tests {
         }
 
         for i in (0..v.len()) {
-            v[i] = enforce_sparsity(c, f, v[i], 6);
+            v[i] = enforce_sparsity(c, f, v[i], sparsity);
         }
 
         v
@@ -294,20 +362,24 @@ mod tests {
 
     #[bench]
     fn bench_slim_grobner_basis_basic(b: &mut Bencher) {
+        use super::super::reduced_grobner_basis::reduced_grobner_basis;
+
         let f = &mut Forest::new();
         let c = &mut Cache::new();
-        let v = build_polynomials(c, f);
-
+        f.sparsity = 12;
+        let v = build_polynomials(c, f, 32, 12);
+        //let mut slim: Vec<NodeIdx> = Vec::new();
         b.iter(|| {
-            slim_grobner_basis(c, f, v.clone(), 35, Some(1_000_000_000))
+            slim_grobner_basis(c, f, v.clone(), 40, Some(1_000_000))
         });
     }
 
-    #[bench]
+    //#[bench]
     fn z_bench_grobner_basis_basic(b: &mut Bencher) {
         let f = &mut Forest::new();
         let c = &mut Cache::new();
-        let v = build_polynomials(c, f);
+        f.sparsity = 4;
+        let v = build_polynomials(c, f, 22, 12);
 
         b.iter(|| {
             slim_grobner_basis(c, f, v.clone(), 1, Some(1_000_000_000))

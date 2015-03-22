@@ -11,6 +11,7 @@ pub struct Node(pub Variable, pub NodeIdx, pub NodeIdx);
 pub struct Forest {
     nodes: Vec<Node>,
     locations: HashMap<Node, NodeIdx>,
+    pub sparsity: usize,
 }
 
 impl Forest {
@@ -18,6 +19,7 @@ impl Forest {
         Forest {
             nodes: vec![Node(0, 0, 0), Node(0, 0, 0)],
             locations: HashMap::new(),
+            sparsity: 100000,
         }
     }
 

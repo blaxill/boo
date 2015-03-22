@@ -1,6 +1,7 @@
 use super::forest::{Forest, Node, NodeIdx};
 use super::add::add;
 use super::{minmax, Cache};
+use super::enforce_sparsity::enforce_sparsity;
 
 pub fn multiply(c: &mut Cache,
                 f: &mut Forest,
@@ -38,6 +39,8 @@ pub fn multiply(c: &mut Cache,
     let p0q1_p1q0_p1q1 = add(c, f, p0q1, p1q0_p1q1);
 
     let result = f.to_node_idx(Node(v, p0q1_p1q0_p1q1, p0q0));
+    let sparsity = f.sparsity;
+    let result = enforce_sparsity(c, f, result, sparsity);
 
     c.multiply.set((lhs, rhs), result)
 }

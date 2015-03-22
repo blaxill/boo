@@ -39,6 +39,7 @@ mod test {
     use super::*;
     use super::super::Cache;
     use super::super::slim_grobner_basis::slim_grobner_basis;
+    use super::super::slim_grobner_basis::is_grobner_basis;
     use super::super::forest::{Forest, Node};
     use super::super::add::add;
     use super::super::multiply::multiply;
@@ -62,15 +63,12 @@ mod test {
         let mut reduced = reduced_grobner_basis(c, f, slim);
         reduced.sort();
         assert_eq!(reduced, vec![x, y, z]);
+        assert!(is_grobner_basis(c, f, reduced));
 
-        let slim = slim_grobner_basis(c, f, v.clone(), 5, None);
+        let slim = slim_grobner_basis(c, f, v.clone(), 10, None);
         let mut reduced = reduced_grobner_basis(c, f, slim);
         reduced.sort();
         assert_eq!(reduced, vec![x, y, z]);
-
-        let slim = slim_grobner_basis(c, f, v.clone(), 50, None);
-        let mut reduced = reduced_grobner_basis(c, f, slim);
-        reduced.sort();
-        assert_eq!(reduced, vec![x, y, z]);
+        assert!(is_grobner_basis(c, f, reduced));
     }
 }

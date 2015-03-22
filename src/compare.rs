@@ -5,6 +5,19 @@ use super::degree::degree;
 
 use std::cmp::Ordering;
 
+pub fn reverse_compare(c: &mut Cache,
+               f: &mut Forest,
+               lhs: NodeIdx,
+               rhs: NodeIdx) -> Ordering
+{
+    match compare(c, f, lhs, rhs) {
+        Ordering::Equal => Ordering::Equal,
+        Ordering::Greater => Ordering::Less,
+        Ordering::Less => Ordering::Greater,
+    }
+}
+
+
 pub fn compare(c: &mut Cache,
                f: &mut Forest,
                lhs: NodeIdx,
