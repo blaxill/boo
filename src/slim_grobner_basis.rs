@@ -364,9 +364,8 @@ mod tests {
     fn bench_slim_grobner_basis_basic(b: &mut Bencher) {
         use super::super::reduced_grobner_basis::reduced_grobner_basis;
 
-        let f = &mut Forest::new();
+        let f = &mut Forest::with_sparsity(12);
         let c = &mut Cache::new();
-        f.sparsity = 12;
         let v = build_polynomials(c, f, 22, 12);
         //let mut slim: Vec<NodeIdx> = Vec::new();
         b.iter(|| {
@@ -376,9 +375,8 @@ mod tests {
 
     //#[bench]
     fn z_bench_grobner_basis_basic(b: &mut Bencher) {
-        let f = &mut Forest::new();
+        let f = &mut Forest::with_sparsity(4);
         let c = &mut Cache::new();
-        f.sparsity = 4;
         let v = build_polynomials(c, f, 22, 12);
 
         b.iter(|| {

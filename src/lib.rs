@@ -25,6 +25,8 @@ pub use ordered_replace::ordered_replace;
 pub use disjoint::disjoint_lead;
 pub use enforce_sparsity::enforce_sparsity;
 pub use term_count::term_count;
+pub use word::Word;
+pub use stupid_hash::RandomState;
 
 mod forest;
 mod memoize;
@@ -47,16 +49,18 @@ mod ordered_replace;
 mod disjoint;
 mod enforce_sparsity;
 mod term_count;
+mod word;
+mod stupid_hash;
 
 pub struct Cache {
-    add: Memoize<(NodeIdx, NodeIdx), NodeIdx>,
-    multiply: Memoize<(NodeIdx, NodeIdx), NodeIdx>,
-    lead: Memoize<NodeIdx, NodeIdx>,
-    degree: Memoize<NodeIdx, NodeIdx>,
-    divides: Memoize<(NodeIdx, NodeIdx), bool>,
-    divide: Memoize<(NodeIdx, NodeIdx), NodeIdx>,
-    spoly: Memoize<(NodeIdx, NodeIdx), NodeIdx>,
-    least_common_multiple: Memoize<(NodeIdx, NodeIdx), NodeIdx>,
+    add: Memoize<(NodeIdx, NodeIdx), NodeIdx, RandomState>,
+    multiply: Memoize<(NodeIdx, NodeIdx), (NodeIdx, usize), RandomState>,
+    lead: Memoize<NodeIdx, NodeIdx, RandomState>,
+    degree: Memoize<NodeIdx, NodeIdx, RandomState>,
+    divides: Memoize<(NodeIdx, NodeIdx), bool, RandomState>,
+    divide: Memoize<(NodeIdx, NodeIdx), NodeIdx, RandomState>,
+    spoly: Memoize<(NodeIdx, NodeIdx), NodeIdx, RandomState>,
+    least_common_multiple: Memoize<(NodeIdx, NodeIdx), NodeIdx, RandomState>,
 }
 
 impl Cache {
