@@ -328,7 +328,7 @@ mod tests {
     }
 
     fn build_polynomials(c: &mut Cache, f: &mut Forest,
-                         size: u16,
+                         size: u8,
                          sparsity: usize) -> Vec<NodeIdx> {
         let i = size;
 
@@ -342,7 +342,7 @@ mod tests {
 
             for i in (0..v.len()).rev() {
                 for j in (i..v.len()) {
-                    let n = f.to_node_idx(Node(j as u16, 1, 0));
+                    let n = f.to_node_idx(Node(j as u8, 1, 0));
                     v[i] = add(c, f, v[i], n);
                 }
             }

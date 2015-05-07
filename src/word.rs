@@ -127,9 +127,11 @@ pub fn compress(cache: &mut Cache,
             mut e: Word, mut f: Word, mut g: Word, mut h: Word) ->
 (Word, Word, Word, Word, Word, Word, Word, Word) {
 
+    let flag = true;
+    let rounds = 64;
     println!("compressing...");
-    for i in 0..64 {
-        //print!("compress {} of 63... ", i);
+    for i in 0..rounds {
+        if flag { println!("compress {} of {}... ", i, rounds-1); }
         let S1 = [6, 11, 25].iter()
             .map(|&shift| e.right_rotate(cache, forest, shift)).collect::<Vec<_>>().iter()
             .fold(Word::new(), |acc, item| acc.xor(cache, forest, &item));
@@ -138,9 +140,8 @@ pub fn compress(cache: &mut Cache,
         let ch = ch1.xor(cache, forest, &ch2);
         let temp1 = h.add(cache, forest, &S1)
             .add(cache, forest, &ch);
-            //.add(c, forest, k[i]);
-            //.add(c, forest, w[i]);
 
+        if flag { println!("\t Mid"); }
         let S0 = [2, 13, 22].iter()
             .map(|&shift| a.right_rotate(cache, forest, shift)).collect::<Vec<_>>().iter()
             .fold(Word::new(), |acc, item| acc.xor(cache, forest, &item));
@@ -150,6 +151,7 @@ pub fn compress(cache: &mut Cache,
         let maj = aNb.xor(cache, forest, &aNc).xor(cache, forest, &bNc);
         let temp2 = S0.add(cache, forest, &maj);
 
+        println!("\t end.");
         h = g;
         g = f;
         f = e;
@@ -172,6 +174,34 @@ mod test {
     use std::collections::HashSet;
 
     use self::test::Bencher;
+
+    #[test]
+    fn compress_efficiency() {
+        let forest = &mut Forest::with_sparsity(2);
+        let cache = &mut Cache::new();
+
+        let mut lfsr: Variable = 1337;
+
+        macro_rules! gen(() =>
+                         (Word::from_fn(|i|{
+                             lfsr = lfsr.wrapping_mul(3138121).wrapping_add(130371);
+                             forest.to_node_idx(Node(lfsr % 64, 1, 0))
+                         }))
+                        );
+
+        let a = gen!();
+        let b = gen!();
+        let c = gen!();
+        let d = gen!();
+        let e = gen!();
+        let f = gen!();
+        let g = gen!();
+        let h = gen!();
+
+        compress(cache, forest, a, b, c, d, e, f, g, h);
+
+        println!("{:?}", cache.multiply);
+    }
 
     #[test]
     fn word_basic() {
@@ -220,7 +250,7 @@ mod test {
 
     #[bench]
     fn bench_compress(bench: &mut Bencher) {
-        let forest = &mut Forest::with_sparsity(3);
+        let forest = &mut Forest::with_sparsity(1);
         let cache = &mut Cache::new();
 
         let mut lfsr: Variable = 1337;
@@ -228,9 +258,10 @@ mod test {
         macro_rules! gen(() =>
                          (Word::from_fn(|i|{
                              lfsr = lfsr * 3138121 + 130371;
-                             forest.to_node_idx(Node(lfsr % 8, 1, 0))
+                             forest.to_node_idx(Node(lfsr % 64, 1, 0))
                          }))
                         );
+        bench.iter(|| {
         let a = gen!();
         let b = gen!();
         let c = gen!();
@@ -240,7 +271,6 @@ mod test {
         let g = gen!();
         let h = gen!();
 
-        bench.iter(|| {
             compress(cache, forest, a, b, c, d, e, f, g, h)
         });
     }
