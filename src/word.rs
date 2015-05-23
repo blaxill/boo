@@ -1,22 +1,48 @@
 use super::forest::{Forest, NodeIdx, Variable};
-use super::Cache;
 use super::add::add;
 use super::multiply::multiply;
+use super::compressive_sensing::{CompressiveSensing, Project};
 
 use std::collections::HashSet;
+use std::cell::RefCell;
+use std::hash::{Hash, Hasher};
 
-#[derive(Copy, Clone)]
-pub struct Word {
+use std::ops::{Add, BitAnd, BitXor, Not, Shr, FnOnce};
+
+#[derive(Clone, Debug)]
+pub struct Word<'a> {
+    forest: &'a RefCell<Forest>,
     bits: [NodeIdx; 32],
 }
 
-impl Word {
-    fn new() -> Word {
-        Word { bits: [0; 32] }
+impl<'a> PartialEq for Word<'a> {
+    fn eq(&self, other: &Word<'a>) -> bool {
+        for i in (0..32) {
+            if self.bits[i] != other.bits[i] {
+                return false;
+            }
+        }
+        return true;
+    }
+}
+
+impl<'a> Eq for Word<'a> { }
+
+impl<'a> Hash for Word<'a> {
+    fn hash<H: Hasher>(&self, state: &mut H) {
+        for i in (0..32) { //&bit in self.bits {
+            state.write_usize(self.bits[i]);
+        }
+    }
+}
+
+impl<'a> Word<'a> {
+    pub fn new(forest: &RefCell<Forest>) -> Word {
+        Word { forest: forest, bits: [0; 32] }
     }
 
-    fn constant(value: u32) -> Word {
-        let mut word = Word::new();
+    pub fn constant(forest: &RefCell<Forest>, value: u32) -> Word {
+        let mut word = Word::new(forest);
 
         for (idx, val) in (0..32)
             .map(|i| { ((value >> i) & 1) as usize })
@@ -27,9 +53,9 @@ impl Word {
         word
     }
 
-    fn from_fn<F>(mut func: F) -> Word
+    pub fn from_fn<F>(forest: &RefCell<Forest>, mut func: F) -> Word
         where F: FnMut(usize) -> NodeIdx {
-        let mut word = Word::new();
+        let mut word = Word::new(forest);
 
         for idx in 0..32 {
             word.bits[idx] = func(idx);
@@ -38,88 +64,185 @@ impl Word {
         word
     }
 
-    fn evaluate(&self, f: &Forest, variable_map: &HashSet<Variable>) -> u32 {
+    pub fn approximate_jacobian<'b>(&self) -> Box<Fn(&Word<'b>,Word<'b>)->Word<'b> + 'a> {
+        let forest = self.forest;
+        let words: Vec<Word<'a>> = self.bits.iter().map(|bit| {
+            let word = Word::from_fn(forest, |i|{
+                let dbit_di = 0;//bit.partial_derivative(i);
+                if forest.borrow().evaluate(dbit_di, &HashSet::new()) { 1 }
+                else { 0 }
+            });
+            word
+        }).collect();
+        return Box::new(move |input, _| {
+            words.iter().map(|_|0).fold(0,|_,_|0);
+            Word::new(input.forest)
+        });
+    }
+}
+
+impl<'a, 'b> Add<&'b Word<'a>> for &'b Word<'a> {
+    type Output = Word<'a>;
+
+    fn add(self, other: &Word<'a>) -> Word<'a> {
+        let mut word = Word::new(self.forest);
+        let mut carry: NodeIdx = 0;
+        let mut f = self.forest.borrow_mut();
+
+        for i in 0..32 {
+            let (lhs, rhs) = (self.bits[i], other.bits[i]);
+            let lhs_add_rhs = add(&mut f, lhs, rhs);
+            let lhs_add_rhs_add_carry = add(&mut f, lhs_add_rhs, carry);
+            word.bits[i] = lhs_add_rhs_add_carry;
+
+            if i < 31 {
+                let mul_carry = multiply(&mut f, lhs_add_rhs, carry);
+                let lhs_mul_rhs = multiply(&mut f, lhs, rhs);
+                carry = add(&mut f, lhs_mul_rhs, mul_carry);
+            }
+        }
+
+        word
+    }
+}
+
+impl<'a, 'b> BitXor<Word<'a>> for Word<'a> {
+    type Output = Word<'a>;
+
+    fn bitxor(self, other: Word<'a>) -> Word<'a> {
+        let mut word = Word::new(self.forest);
+        let mut f = self.forest.borrow_mut();
+
+        for i in 0..32 {
+            let (lhs, rhs) = (self.bits[i], other.bits[i]);
+            word.bits[i] = add(&mut f, lhs, rhs);
+        }
+
+        word
+    }
+}
+
+impl<'a, 'b> BitXor<&'b Word<'a>> for &'b Word<'a> {
+    type Output = Word<'a>;
+
+    fn bitxor(self, other: &Word<'a>) -> Word<'a> {
+        let mut word = Word::new(self.forest);
+        let mut f = self.forest.borrow_mut();
+
+        for i in 0..32 {
+            let (lhs, rhs) = (self.bits[i], other.bits[i]);
+            word.bits[i] = add(&mut f, lhs, rhs);
+        }
+
+        word
+    }
+}
+
+impl<'a, 'b> BitAnd<&'b Word<'a>> for &'b Word<'a> {
+    type Output = Word<'a>;
+
+    fn bitand(self, other: &Word<'a>) -> Word<'a> {
+        let mut word = Word::new(self.forest);
+        let mut f = self.forest.borrow_mut();
+
+        for i in 0..32 {
+            let (lhs, rhs) = (self.bits[i], other.bits[i]);
+            word.bits[i] = multiply(&mut f, lhs, rhs);
+        }
+
+        word
+    }
+}
+
+impl<'a, 'b> Shr<usize> for &'b Word<'a> {
+    type Output = Word<'a>;
+
+    fn shr(self, distance: usize) -> Word<'a> {
+        let mut word = Word::new(self.forest);
+
+        for i in 0..32 {
+            word.bits[i] = self.bits[(i+distance)%32];
+        }
+
+        word
+    }
+}
+
+impl<'a, 'b> Not for &'b Word<'a> {
+    type Output = Word<'a>;
+
+    fn not(self) -> Word<'a> {
+        let mut word = Word::new(self.forest);
+        let mut f = self.forest.borrow_mut();
+
+        for i in 0..32 {
+            word.bits[i] = add(&mut f, self.bits[i], 1);
+        }
+
+        word
+    }
+}
+
+impl<'a, 'b, 'c> Fn<(&'b HashSet<Variable>,)> for Word<'a> {
+    extern "rust-call" fn call(&self, args: (&'b HashSet<Variable>,)) -> u32 {
+        self.call_once(args)
+    }
+}
+
+impl<'a, 'b, 'c> FnMut<(&'b HashSet<Variable>,)> for Word<'a> {
+    extern "rust-call" fn call_mut(&mut self, args: (&'b HashSet<Variable>,)) -> u32 {
+        self.call_once(args)
+    }
+}
+
+impl<'a, 'b, 'c> FnOnce<(&'b HashSet<Variable>,)> for Word<'a> {
+    type Output = u32;
+    extern "rust-call" fn call_once(self, (variable_map,): (&'b HashSet<Variable>,)) -> u32 {
         self.bits
             .iter()
             .enumerate()
             .fold(0,
             |value, (i, &node)| {
-                if f.evaluate(node, variable_map) {
+                if self.forest.borrow().evaluate(node, variable_map) {
                     value + (1 << i)
                 } else {
                     value
                 }
             })
     }
+}
 
-    fn add(&self,
-           c: &mut Cache,
-           f: &mut Forest, other: &Word) -> Word {
-        let mut word = Word::new();
-        let mut carry: NodeIdx = 0;
+impl<'a> Project for Word<'a> {
+    fn project(&self,
+               sparsity: usize,
+               exclusion_set: &HashSet<Word<'a>>) -> Word<'a> {
 
-        for i in 0..32 {
-            let (lhs, rhs) = (self.bits[i], other.bits[i]);
-            let lhs_add_rhs = add(c, f, lhs, rhs);
-            let lhs_add_rhs_add_carry = add(c, f, lhs_add_rhs, carry);
-            word.bits[i] = lhs_add_rhs_add_carry;
+        fn bitcount(mut value: u32) -> u32 {
+            let mut output = 0;
+            while value > 0 {
+                if value & 1 > 0 {
+                    output += 1;
+                }
+                value >>= 1;
+            }
+            output
+        }
 
-            if i < 31 {
-                let mul_carry = multiply(c, f, lhs_add_rhs, carry);
-                let lhs_mul_rhs = multiply(c, f, lhs, rhs);
-                carry = add(c, f, lhs_mul_rhs, mul_carry);
+        let mask = self(&HashSet::new());
+
+        for i in (0..mask).filter(|&x| bitcount(x) <= sparsity as u32).rev() {
+            if (mask & i) == i {
+                let candidate = Word::constant(self.forest, i);
+                if !exclusion_set.contains(&candidate) {
+                    return candidate;
+                }
             }
         }
 
-        word
-    }
-
-    fn xor(&self,
-           c: &mut Cache,
-           f: &mut Forest, other: &Word) -> Word {
-        let mut word = Word::new();
-
-        for i in 0..32 {
-            let (lhs, rhs) = (self.bits[i], other.bits[i]);
-            word.bits[i] = add(c, f, lhs, rhs);
-        }
-
-        word
-    }
-
-    fn and(&self,
-           c: &mut Cache,
-           f: &mut Forest, other: &Word) -> Word {
-        let mut word = Word::new();
-
-        for i in 0..32 {
-            let (lhs, rhs) = (self.bits[i], other.bits[i]);
-            word.bits[i] = multiply(c, f, lhs, rhs);
-        }
-
-        word
-    }
-
-    fn right_rotate(&self,
-           c: &mut Cache,
-           f: &mut Forest, distance: usize) -> Word {
-        let mut word = Word::new();
-        for i in 0..32 {
-            word.bits[i] = self.bits[(i+distance)%32];
-        }
-        word
-    }
-
-    fn not(&self,
-           c: &mut Cache,
-           f: &mut Forest) -> Word {
-        let mut word = Word::new();
-        for i in 0..32 {
-            word.bits[i] = add(c, f, self.bits[i], 1);
-        }
-        word
+        Word::constant(self.forest, self(&HashSet::new()).wrapping_mul(132391).wrapping_add(256))
     }
 }
+    /*
 
 pub fn compress(cache: &mut Cache,
             forest: &mut Forest,
@@ -127,7 +250,7 @@ pub fn compress(cache: &mut Cache,
             mut e: Word, mut f: Word, mut g: Word, mut h: Word) ->
 (Word, Word, Word, Word, Word, Word, Word, Word) {
 
-    let flag = true;
+    let flag = false;
     let rounds = 64;
     println!("compressing...");
     for i in 0..rounds {
@@ -162,7 +285,7 @@ pub fn compress(cache: &mut Cache,
         a = temp1.add(cache, forest, &temp2);
     }
     (a, b, c, d, e, f, g, h)
-}
+}*/
 
 #[cfg(test)]
 mod test {
@@ -170,128 +293,95 @@ mod test {
 
     use super::*;
     use super::super::forest::{Forest, Node, Variable};
-    use super::super::Cache;
-    use std::collections::HashSet;
 
     use self::test::Bencher;
 
-    #[test]
-    fn compress_efficiency() {
-        let forest = &mut Forest::with_sparsity(2);
-        let cache = &mut Cache::new();
-
-        let mut lfsr: Variable = 1337;
-
-        macro_rules! gen(() =>
-                         (Word::from_fn(|i|{
-                             lfsr = lfsr.wrapping_mul(3138121).wrapping_add(130371);
-                             forest.to_node_idx(Node(lfsr % 64, 1, 0))
-                         }))
-                        );
-
-        let a = gen!();
-        let b = gen!();
-        let c = gen!();
-        let d = gen!();
-        let e = gen!();
-        let f = gen!();
-        let g = gen!();
-        let h = gen!();
-
-        compress(cache, forest, a, b, c, d, e, f, g, h);
-
-        println!("{:?}", cache.multiply);
-    }
+    use std::collections::HashSet;
+    use std::cell::RefCell;
 
     #[test]
     fn word_basic() {
-        let f = &mut Forest::with_sparsity(4);
-        let c = &mut Cache::new();
+        let f = RefCell::new(Forest::with_sparsity(4));
 
-        let x = Word::constant(4);
-        let y = Word::constant(5);
-        let z = Word::constant(0x1337);
-        let w = Word::constant(0xC0DEC0DE);
+        let x = Word::constant(&f, 4);
+        let y = Word::constant(&f, 5);
+        let z = Word::constant(&f, 0x1337);
+        let w = Word::constant(&f, 0xC0DEC0DE);
 
-        assert_eq!(x.evaluate(f, &HashSet::new()), 4);
-        assert_eq!(y.evaluate(f, &HashSet::new()), 5);
-        assert_eq!(z.evaluate(f, &HashSet::new()), 0x1337);
-        assert_eq!(w.evaluate(f, &HashSet::new()), 0xC0DEC0DE);
+        assert_eq!(x(&HashSet::new()), 4);
+        assert_eq!(y(&HashSet::new()), 5);
+        assert_eq!(z(&HashSet::new()), 0x1337);
+        assert_eq!(w(&HashSet::new()), 0xC0DEC0DE);
+    }
+
+    #[test]
+    fn word_compressive_sensing() {
+        use super::super::compressive_sensing::CompressiveSensing;
+
+        let f = RefCell::new(Forest::with_sparsity(4));
+
+        let forward = |x| {
+            let _1337 = Word::constant(&f, 1337);
+            let _FFF0 = Word::constant(&f, 0xFFF8F8FF);
+            let y = x ^ _1337;
+            y 
+        };
+
+        let result = forward(Word::constant(&f, 7));
+
+        let pass_through = forward(Word::from_fn(&f, |x|x));
+        let local_adjoint = pass_through.approximate_jacobian();
+
+        let mut cs = CompressiveSensing::new(4, Word::constant(&f, 0), result);
+        let result = cs.compressive_sensing(forward, &*local_adjoint);
+
+        println!("{:?}", result);
     }
 
     #[test]
     fn word_poly() {
-        let f = &mut Forest::with_sparsity(4);
-        let c = &mut Cache::new();
+        let f = RefCell::new(Forest::with_sparsity(4));
 
-        let x = Word::from_fn(|i|{
+        let x = Word::from_fn(&f, |i|{
             if i < 4 {
-                f.to_node_idx(Node(i as Variable, 1, 0))
+                f.borrow_mut().to_node_idx(Node(i as Variable, 1, 0))
             } else { 0 }
         });
-        let y = Word::from_fn(|i|{
+        let y = Word::from_fn(&f, |i|{
             if i < 4 {
-                f.to_node_idx(Node((i + 4) as Variable, 1, 0))
+                f.borrow_mut().to_node_idx(Node((i + 4) as Variable, 1, 0))
             } else { 0 }
         });
-        let z = Word::constant(0x1337);
-        let w = Word::constant(0xC0DEC0DE);
+        let z = Word::constant(&f, 0x1337);
+        let w = Word::constant(&f, 0xC0DEC0DE);
 
         let all_set: HashSet<Variable> = (0..8).collect();
         let none_set: HashSet<Variable> = HashSet::new();
 
-        assert_eq!(x.evaluate(f, &all_set), 15);
-        assert_eq!(y.evaluate(f, &all_set), 15);
-        assert_eq!(x.evaluate(f, &none_set), 0);
-        assert_eq!(y.evaluate(f, &none_set), 0);
-        assert_eq!(z.evaluate(f, &HashSet::new()), 0x1337);
-        assert_eq!(w.evaluate(f, &HashSet::new()), 0xC0DEC0DE);
-    }
-
-    #[bench]
-    fn bench_compress(bench: &mut Bencher) {
-        let forest = &mut Forest::with_sparsity(1);
-        let cache = &mut Cache::new();
-
-        let mut lfsr: Variable = 1337;
-
-        macro_rules! gen(() =>
-                         (Word::from_fn(|i|{
-                             lfsr = lfsr * 3138121 + 130371;
-                             forest.to_node_idx(Node(lfsr % 64, 1, 0))
-                         }))
-                        );
-        bench.iter(|| {
-        let a = gen!();
-        let b = gen!();
-        let c = gen!();
-        let d = gen!();
-        let e = gen!();
-        let f = gen!();
-        let g = gen!();
-        let h = gen!();
-
-            compress(cache, forest, a, b, c, d, e, f, g, h)
-        });
+        assert_eq!(x(&all_set), 15);
+        assert_eq!(y(&all_set), 15);
+        assert_eq!(x(&none_set), 0);
+        assert_eq!(y(&none_set), 0);
+        assert_eq!(z(&HashSet::new()), 0x1337);
+        assert_eq!(w(&HashSet::new()), 0xC0DEC0DE);
     }
 
     fn bench_k_sparse_64_add(b: &mut Bencher, k: usize) {
-        let f = &mut Forest::with_sparsity(k);
-        let c = &mut Cache::new();
+        let f = RefCell::new(Forest::with_sparsity(k));
 
         let mut lfsr: Variable = 1337;
 
-        let mut x = Word::from_fn(|i|{
-            lfsr = lfsr * 3138121 + 130371;
-            f.to_node_idx(Node(lfsr % 16, 1, 0))
+        let mut x = Word::from_fn(&f, |i|{
+            lfsr = lfsr.wrapping_mul(3138121).wrapping_add(130371);
+            f.borrow_mut().to_node_idx(Node(lfsr % 16, 1, 0))
         });
 
         b.iter(|| {
-            let y = Word::from_fn(|i|{
-                lfsr = lfsr * 3138121 + 130371;
-                f.to_node_idx(Node(lfsr % 16, 1, 0))
+            let y = Word::from_fn(&f, |i|{
+                lfsr = lfsr.wrapping_mul(3138121).wrapping_add(130371);
+                f.borrow_mut().to_node_idx(Node(lfsr % 16, 1, 0))
             });
-            x.add(c, f, &y)
+            &x + &y
         });
     }
 
@@ -305,24 +395,22 @@ mod test {
     }
 
     fn bench_k_sparse_64_xor(b: &mut Bencher, k: usize) {
-        let f = &mut Forest::with_sparsity(k);
-        let c = &mut Cache::new();
+        let f = RefCell::new(Forest::with_sparsity(k));
 
         let mut lfsr: Variable = 1337;
 
-        let mut x = Word::from_fn(|i|{
-            lfsr = lfsr * 3138121 + 130371;
-            f.to_node_idx(Node(lfsr % 64, 1, 0))
+        let mut x = Word::from_fn(&f, |i|{
+            lfsr = lfsr.wrapping_mul(3138121).wrapping_add(130371);
+            f.borrow_mut().to_node_idx(Node(lfsr % 64, 1, 0))
         });
 
         b.iter(|| {
-            let y = Word::from_fn(|i|{
-                lfsr = lfsr * 3138121 + 130371;
-                f.to_node_idx(Node(lfsr % 64, 1, 0))
+            let y = Word::from_fn(&f, |i|{
+            lfsr = lfsr.wrapping_mul(3138121).wrapping_add(130371);
+                f.borrow_mut().to_node_idx(Node(lfsr % 64, 1, 0))
             });
 
-            x = x.xor(c, f, &y);
-            x
+            &x ^ &y
         });
     }
 
@@ -339,3 +427,4 @@ mod test {
         bench_k_sparse_64_xor(b, 12);
     }
 }
+

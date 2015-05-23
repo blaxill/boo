@@ -26,14 +26,14 @@ impl Hasher for NodeHasher {
 }
 
 #[derive(Clone)]
-pub struct RandomState;
+pub struct NodeHasherState;
 
-impl RandomState {
+impl NodeHasherState {
     #[inline]
-    pub fn new() -> RandomState { RandomState }
+    pub fn new() -> NodeHasherState { NodeHasherState }
 }
 
-impl HashState for RandomState {
+impl HashState for NodeHasherState {
     type Hasher = NodeHasher;
 
     #[inline]
@@ -42,9 +42,9 @@ impl HashState for RandomState {
     }
 }
 
-impl Default for RandomState {
+impl Default for NodeHasherState {
     #[inline]
-    fn default() -> RandomState {
-        RandomState::new()
+    fn default() -> NodeHasherState {
+        NodeHasherState::new()
     }
 }

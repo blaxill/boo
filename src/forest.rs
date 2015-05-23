@@ -1,9 +1,9 @@
+use super::node_hasher::NodeHasherState;
+
 use std::collections::HashMap;
-use std::collections::hash_map::Entry::{Vacant, Occupied};
 use std::fmt::{Debug, Formatter, Error};
 use std::cmp::max;
 use std::collections::HashSet;
-use super::stupid_hash::RandomState;
 use std::default::Default;
 
 pub type NodeIdx = usize;
@@ -14,20 +14,19 @@ pub struct Node(pub Variable, pub NodeIdx, pub NodeIdx);
 
 #[derive(Clone)]
 struct NodePage {
-    locations: HashMap<(NodeIdx, NodeIdx), NodeIdx, RandomState>,
+    locations: HashMap<(NodeIdx, NodeIdx), NodeIdx, NodeHasherState>,
 }
 
 pub struct Forest {
     nodes: Vec<Node>,
     degrees: Vec<usize>,
-    //locations: HashMap<Node, NodeIdx>,
     sparsity: usize,
     node_pages: Vec<NodePage>,
 }
 
 impl NodePage {
     fn new() -> NodePage {
-        NodePage{ locations: HashMap::with_capacity_and_hash_state(1024, Default::default()), }
+        NodePage{ locations: HashMap::with_capacity_and_hash_state(1024*32, Default::default()), }
     }
 
     fn get_or_insert(&mut self, hi: NodeIdx, lo: NodeIdx, next_free: NodeIdx) -> NodeIdx {
@@ -98,7 +97,6 @@ impl Forest {
         if node.1 == 0 { return node.2 }
 
         let high_bit = 0x8000_0000_0000_0000;
-        let affine_bit = high_bit >> 1;
 
         if node.0 < 64 && node.1 == 1 {
             if node.2 < (1<<55) {

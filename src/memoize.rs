@@ -23,7 +23,6 @@ impl<I, O, S> Memoize<I, O, S>
     }
 
     pub fn get(&mut self, input: &I) -> Option<O> {
-        return None;
         let next_count = if let Some(count) = self.counts.get(input) {
                 count + 1
             } else {
@@ -34,7 +33,6 @@ impl<I, O, S> Memoize<I, O, S>
     }
 
     pub fn set(&mut self, input: I, output: O) -> O {
-        return output;
         self.map.insert(input, output);
         output
     }
@@ -45,23 +43,11 @@ impl<I, O, S> Debug for Memoize<I, O, S>
           S: HashState,
 {
     fn fmt(&self, f: &mut Formatter) -> Result<(), Error> {
-        let min = self.counts.iter()
-            .map(|(_, &count)|count)
-            .fold(1_000_000, |min, count| {
-                if count < min { count } else { min }
-            });
-        let max = self.counts.iter()
-            .map(|(_, &count)|count)
-            .fold(0, |max, count| {
-                if count > max { count } else { max }
-            });
+        let min_max = self.counts.iter().map(|(_, &count)| count).min_max();
         let avg = self.counts.iter()
-            .map(|(_, &count)|count)
+            .map(|(_, &count)| count)
             .fold(0f64, |avg, count| avg + count as f64) / self.counts.len() as f64;
-        writeln!(f, "Len {}", self.map.len());
-        writeln!(f, "Min {}", min);
-        writeln!(f, "Max {}", max);
-        writeln!(f, "Avg {}", avg)
+        writeln!(f, "Memoize {{ length: {}, min/max hits: {:?} }}", self.map.len(), min_max)
     }
 }
 

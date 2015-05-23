@@ -23,10 +23,10 @@ rpath = false
 lto = false
 
 [profile.test]
-opt-level = 3
+opt-level = 2
 debug = true
 rpath = false
-lto = false
+lto = true
 
 
 [lib]
