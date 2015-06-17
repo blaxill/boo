@@ -242,13 +242,11 @@ impl<'a> Project for Word<'a> {
         Word::constant(self.forest, self(&HashSet::new()).wrapping_mul(132391).wrapping_add(256))
     }
 }
-    /*
 
-pub fn compress(cache: &mut Cache,
-            forest: &mut Forest,
-            mut a: Word, mut b: Word, mut c: Word, mut d: Word,
-            mut e: Word, mut f: Word, mut g: Word, mut h: Word) ->
-(Word, Word, Word, Word, Word, Word, Word, Word) {
+pub fn compress(mut a: Word, mut b: Word, mut c: Word, mut d: Word,
+                mut e: Word, mut f: Word, mut g: Word, mut h: Word)
+    ->
+    (Word, Word, Word, Word, Word, Word, Word, Word) {
 
     let flag = false;
     let rounds = 64;
@@ -256,8 +254,8 @@ pub fn compress(cache: &mut Cache,
     for i in 0..rounds {
         if flag { println!("compress {} of {}... ", i, rounds-1); }
         let S1 = [6, 11, 25].iter()
-            .map(|&shift| e.right_rotate(cache, forest, shift)).collect::<Vec<_>>().iter()
-            .fold(Word::new(), |acc, item| acc.xor(cache, forest, &item));
+            .map(|&shift| e >> shift)
+            .fold(Word::new(a.forest), |acc, &item| acc ^ item);
         let ch1 = e.and(cache, forest, &f);
         let ch2 = e.not(cache, forest).and(cache, forest, &g);
         let ch = ch1.xor(cache, forest, &ch2);
@@ -285,7 +283,7 @@ pub fn compress(cache: &mut Cache,
         a = temp1.add(cache, forest, &temp2);
     }
     (a, b, c, d, e, f, g, h)
-}*/
+}
 
 #[cfg(test)]
 mod test {
@@ -312,6 +310,17 @@ mod test {
         assert_eq!(y(&HashSet::new()), 5);
         assert_eq!(z(&HashSet::new()), 0x1337);
         assert_eq!(w(&HashSet::new()), 0xC0DEC0DE);
+    }
+
+    #[test]
+    fn word_compres() {
+        let f = RefCell::new(Forest::with_sparsity(2));
+
+        let a = Word::constant(&f, 4);
+
+        let result = compress(a, b, c, d, e, f, g, h);
+
+        println!("{:?}", result);
     }
 
     #[test]
