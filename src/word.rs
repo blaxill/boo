@@ -1,6 +1,7 @@
-use super::forest::{Forest, NodeIdx, Variable};
+use super::forest::{Forest, NodeIdx, Variable, Node};
 use super::add::add;
 use super::multiply::multiply;
+use super::monomial_count::monomial_count;
 use super::compressive_sensing::{CompressiveSensing, Project};
 
 use std::collections::HashSet;
@@ -8,6 +9,8 @@ use std::cell::RefCell;
 use std::hash::{Hash, Hasher};
 
 use std::ops::{Add, BitAnd, BitXor, Not, Shr, FnOnce};
+
+use test::Bencher;
 
 #[derive(Clone, Debug)]
 pub struct Word<'a> {
@@ -81,7 +84,7 @@ impl<'a> Word<'a> {
     }
 }
 
-impl<'a, 'b> Add<&'b Word<'a>> for &'b Word<'a> {
+impl<'a, 'b, 'c> Add<&'c Word<'a>> for &'b Word<'a> {
     type Output = Word<'a>;
 
     fn add(self, other: &Word<'a>) -> Word<'a> {
@@ -122,7 +125,7 @@ impl<'a, 'b> BitXor<Word<'a>> for Word<'a> {
     }
 }
 
-impl<'a, 'b> BitXor<&'b Word<'a>> for &'b Word<'a> {
+impl<'a, 'b, 'c> BitXor<&'c Word<'a>> for &'b Word<'a> {
     type Output = Word<'a>;
 
     fn bitxor(self, other: &Word<'a>) -> Word<'a> {
@@ -138,7 +141,7 @@ impl<'a, 'b> BitXor<&'b Word<'a>> for &'b Word<'a> {
     }
 }
 
-impl<'a, 'b> BitAnd<&'b Word<'a>> for &'b Word<'a> {
+impl<'a, 'b, 'c> BitAnd<&'c Word<'a>> for &'b Word<'a> {
     type Output = Word<'a>;
 
     fn bitand(self, other: &Word<'a>) -> Word<'a> {
@@ -157,7 +160,7 @@ impl<'a, 'b> BitAnd<&'b Word<'a>> for &'b Word<'a> {
 impl<'a, 'b> Shr<usize> for &'b Word<'a> {
     type Output = Word<'a>;
 
-    fn shr(self, distance: usize) -> Word<'a> {
+        fn shr(self, distance: usize) -> Word<'a> {
         let mut word = Word::new(self.forest);
 
         for i in 0..32 {
@@ -243,59 +246,39 @@ impl<'a> Project for Word<'a> {
     }
 }
 
-pub fn compress(mut a: Word, mut b: Word, mut c: Word, mut d: Word,
-                mut e: Word, mut f: Word, mut g: Word, mut h: Word)
+pub fn compress<'a, 'b>(a: &'b Word<'a>,  b: &'b Word<'a>,  c: &'b Word<'a>,  d: &'b Word<'a>,
+                        e: &'b Word<'a>,  f: &'b Word<'a>,  g: &'b Word<'a>,  h: &'b Word<'a>)
     ->
-    (Word, Word, Word, Word, Word, Word, Word, Word) {
+    (Word<'a>, Word<'a>, Word<'a>, Word<'a>, Word<'a>, Word<'a>, Word<'a>, Word<'a>) {
 
-    let flag = false;
-    let rounds = 64;
-    println!("compressing...");
-    for i in 0..rounds {
-        if flag { println!("compress {} of {}... ", i, rounds-1); }
-        let S1 = [6, 11, 25].iter()
-            .map(|&shift| e >> shift)
-            .fold(Word::new(a.forest), |acc, &item| acc ^ item);
-        let ch1 = e.and(cache, forest, &f);
-        let ch2 = e.not(cache, forest).and(cache, forest, &g);
-        let ch = ch1.xor(cache, forest, &ch2);
-        let temp1 = h.add(cache, forest, &S1)
-            .add(cache, forest, &ch);
+    let forest = a.forest;
 
-        if flag { println!("\t Mid"); }
-        let S0 = [2, 13, 22].iter()
-            .map(|&shift| a.right_rotate(cache, forest, shift)).collect::<Vec<_>>().iter()
-            .fold(Word::new(), |acc, item| acc.xor(cache, forest, &item));
-        let aNb = a.and(cache, forest, &b);
-        let aNc = a.and(cache, forest, &c);
-        let bNc = b.and(cache, forest, &c);
-        let maj = aNb.xor(cache, forest, &aNc).xor(cache, forest, &bNc);
-        let temp2 = S0.add(cache, forest, &maj);
+    let S1 = &[6, 11, 25].iter()
+        .map(|&shift| e >> shift)
+        .fold(Word::new(forest), |acc, item| (acc ^ item));
 
-        println!("\t end.");
-        h = g;
-        g = f;
-        f = e;
-        e = d.add(cache, forest, &temp1);
-        d = c;
-        c = b;
-        b = a;
-        a = temp1.add(cache, forest, &temp2);
-    }
-    (a, b, c, d, e, f, g, h)
+    let not_e = &(!e);
+    let ch1 = &(e & f);
+    let ch2 = &(not_e & g);
+    let ch = &(ch1 ^ ch2);
+    let temp1 = &(h & S1);
+    let temp1 = &(temp1 + ch);
+
+    let S0 = &[2, 13, 22].iter()
+        .map(|&shift| a >> shift)
+        .fold(Word::new(forest), |acc, item| (acc ^ item));
+    let aNb = &(a & b);
+    let aNc = &(a & c);
+    let bNc = &(b & c);
+    let maj = &(aNb ^ aNc);
+    let maj = &(maj ^ bNc);
+    let temp2 = &(S0 + maj);
+
+    let dtemp1 = (d + temp1);
+    ((temp1 + temp2) , a.clone(), b.clone(), c.clone(),
+    dtemp1, e.clone(), f.clone(), g.clone())
 }
 
-#[cfg(test)]
-mod test {
-    extern crate test;
-
-    use super::*;
-    use super::super::forest::{Forest, Node, Variable};
-
-    use self::test::Bencher;
-
-    use std::collections::HashSet;
-    use std::cell::RefCell;
 
     #[test]
     fn word_basic() {
@@ -310,22 +293,108 @@ mod test {
         assert_eq!(y(&HashSet::new()), 5);
         assert_eq!(z(&HashSet::new()), 0x1337);
         assert_eq!(w(&HashSet::new()), 0xC0DEC0DE);
+
+        let x_y = &x + &y;
+        assert_eq!(x_y(&HashSet::new()), 9);
     }
 
-    #[test]
-    fn word_compres() {
+    #[bench]
+    fn word_compress_bench(bench: &mut Bencher) {
         let f = RefCell::new(Forest::with_sparsity(2));
 
-        let a = Word::constant(&f, 4);
 
-        let result = compress(a, b, c, d, e, f, g, h);
+        bench.iter(|| {
+        let a = Word::from_fn(&f, |i|{
+            f.borrow_mut().to_node_idx(Node(i as Variable, 1, 0))
+        });
+        let b = Word::from_fn(&f, |i|{
+            let i = i;
+            f.borrow_mut().to_node_idx(Node(i as Variable, 1, 0))
+        });
+        let v = (
+            Word::constant(&f, 0),
+            Word::constant(&f, 0),
+            Word::constant(&f, 0),
+            Word::constant(&f, 0),
+            a, //Word::constant(&f, 0),
+            b, //Word::constant(&f, 0),
+            Word::constant(&f, 0),
+            Word::constant(&f, 0),
+        );
+            (0..64).into_iter().fold(
+            v,
+            |(a, b, c, d, e, f, g, h), _|
+                compress(&a, &b, &c, &d, &e, &f, &g, &h)
+            )
+        }
+        );
+    }
 
-        println!("{:?}", result);
+/*    #[test]
+    fn word_compress_5() {
+        word_compress(5);
+    }
+    #[test]
+    fn word_compress_10() {
+        word_compress(10);
+    }*/
+    #[test]
+    fn word_compress_20() {
+        word_compress(20);
+    }
+
+
+    fn word_compress(d: usize) {
+        for s in (1..4) {
+            let f = RefCell::new(Forest::with_sparsity(s));
+
+            let a = Word::from_fn(&f, |i|{
+                f.borrow_mut().to_node_idx(Node(i as Variable, 1, 0))
+            });
+            let b = Word::from_fn(&f, |i|{
+                let i = i;
+                f.borrow_mut().to_node_idx(Node(i as Variable, 1, 0))
+            });
+
+            let v = (
+                Word::constant(&f, 0),
+                Word::constant(&f, 0),
+                Word::constant(&f, 0),
+                Word::constant(&f, 0),
+                a, //Word::constant(&f, 0),
+                Word::constant(&f, 0),
+                Word::constant(&f, 0),
+                Word::constant(&f, 0),
+                );
+
+            let result = (0..d).into_iter().fold(
+                v,
+                |(a, b, c, d, e, f, g, h), _|
+                compress(&a, &b, &c, &d, &e, &f, &g, &h)
+                );
+
+            //println!("{:?}", result);
+
+            let forest = f.borrow();
+
+            let mut res: Vec<_> = result.0.bits.iter().cloned().collect();
+            res.append(&mut result.1.bits.iter().cloned().collect());
+            res.append(&mut result.2.bits.iter().cloned().collect());
+            res.append(&mut result.3.bits.iter().cloned().collect());
+            res.append(&mut result.4.bits.iter().cloned().collect());
+            res.append(&mut result.5.bits.iter().cloned().collect());
+            res.append(&mut result.6.bits.iter().cloned().collect());
+            res.append(&mut result.7.bits.iter().cloned().collect());
+
+            let monomial_counts: Vec<_> = res.iter().map(|&x|monomial_count(&forest, x)).collect();
+
+            println!("{}: Min max: {:?}", s, monomial_counts.iter().cloned().min_max());
+        }
     }
 
     #[test]
     fn word_compressive_sensing() {
-        use super::super::compressive_sensing::CompressiveSensing;
+        use super::compressive_sensing::CompressiveSensing;
 
         let f = RefCell::new(Forest::with_sparsity(4));
 
@@ -333,7 +402,7 @@ mod test {
             let _1337 = Word::constant(&f, 1337);
             let _FFF0 = Word::constant(&f, 0xFFF8F8FF);
             let y = x ^ _1337;
-            y 
+            y
         };
 
         let result = forward(Word::constant(&f, 7));
@@ -435,5 +504,3 @@ mod test {
     fn bench_12_sparse_64_xor(b: &mut Bencher) {
         bench_k_sparse_64_xor(b, 12);
     }
-}
-
