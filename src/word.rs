@@ -388,7 +388,8 @@ pub fn compress<'a, 'b>(a: &'b Word<'a>,  b: &'b Word<'a>,  c: &'b Word<'a>,  d:
 
             let monomial_counts: Vec<_> = res.iter().map(|&x|monomial_count(&forest, x)).collect();
 
-            println!("{}: Min max: {:?}", s, monomial_counts.iter().cloned().min_max());
+            println!("{}: Min: {:?}", s, monomial_counts.iter().cloned().min());
+            println!("{}: Max: {:?}", s, monomial_counts.iter().cloned().max());
         }
     }
 
