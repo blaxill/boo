@@ -145,27 +145,23 @@ impl Debug for Forest {
 mod test {
     use super::*;
 
-    //#[test]
+    /*
+    #[test]
     fn forest_basic() {
         let mut f = Forest::new();
         assert_eq!(f.nodes.len(), 2);
 
-        f.to_node_idx(Node(0, 1, 0));
+        f.to_node_idx(Node(1, 1, 0));
+        assert_eq!(f.nodes.len(), 2);
+
+        f.to_node_idx(Node(2, 1, 0));
         assert_eq!(f.nodes.len(), 3);
 
-        f.to_node_idx(Node(1, 1, 0));
+        f.to_node_idx(Node(2, 0, 0));
         assert_eq!(f.nodes.len(), 4);
 
         f.to_node_idx(Node(2, 1, 0));
-        assert_eq!(f.nodes.len(), 5);
-
-        f.to_node_idx(Node(2, 0, 0));
-        assert_eq!(f.nodes.len(), 5);
-
-        f.to_node_idx(Node(2, 1, 0));
-        assert_eq!(f.nodes.len(), 5);
-
-        f.to_node_idx(Node(0, 1, 1));
-        assert_eq!(f.nodes.len(), 6);
+        assert_eq!(f.nodes.len(), 4);
     }
+    */
 }

@@ -1,8 +1,7 @@
 use super::forest::{Forest, NodeIdx, Variable, Node};
 use super::add::add;
 use super::multiply::multiply;
-use super::monomial_count::monomial_count;
-use super::compressive_sensing::{CompressiveSensing, Project};
+//use super::monomial_count::monomial_count;
 
 use std::collections::HashSet;
 use std::cell::RefCell;
@@ -20,7 +19,7 @@ pub struct Word<'a> {
 
 impl<'a> PartialEq for Word<'a> {
     fn eq(&self, other: &Word<'a>) -> bool {
-        for i in (0..32) {
+        for i in 0..32 {
             if self.bits[i] != other.bits[i] {
                 return false;
             }
@@ -33,7 +32,7 @@ impl<'a> Eq for Word<'a> { }
 
 impl<'a> Hash for Word<'a> {
     fn hash<H: Hasher>(&self, state: &mut H) {
-        for i in (0..32) { //&bit in self.bits {
+        for i in 0..32 {
             state.write_usize(self.bits[i]);
         }
     }
@@ -67,10 +66,12 @@ impl<'a> Word<'a> {
         word
     }
 
+    #[allow(unreachable_code)]
     pub fn approximate_jacobian<'b>(&self) -> Box<Fn(&Word<'b>,Word<'b>)->Word<'b> + 'a> {
+        panic!("Not fully implemented.");
         let forest = self.forest;
-        let words: Vec<Word<'a>> = self.bits.iter().map(|bit| {
-            let word = Word::from_fn(forest, |i|{
+        let words: Vec<Word<'a>> = self.bits.iter().map(|_bit| {
+            let word = Word::from_fn(forest, |_i|{
                 let dbit_di = 0;//bit.partial_derivative(i);
                 if forest.borrow().evaluate(dbit_di, &HashSet::new()) { 1 }
                 else { 0 }
@@ -215,70 +216,6 @@ impl<'a, 'b, 'c> FnOnce<(&'b HashSet<Variable>,)> for Word<'a> {
     }
 }
 
-impl<'a> Project for Word<'a> {
-    fn project(&self,
-               sparsity: usize,
-               exclusion_set: &HashSet<Word<'a>>) -> Word<'a> {
-
-        fn bitcount(mut value: u32) -> u32 {
-            let mut output = 0;
-            while value > 0 {
-                if value & 1 > 0 {
-                    output += 1;
-                }
-                value >>= 1;
-            }
-            output
-        }
-
-        let mask = self(&HashSet::new());
-
-        for i in (0..mask).filter(|&x| bitcount(x) <= sparsity as u32).rev() {
-            if (mask & i) == i {
-                let candidate = Word::constant(self.forest, i);
-                if !exclusion_set.contains(&candidate) {
-                    return candidate;
-                }
-            }
-        }
-
-        Word::constant(self.forest, self(&HashSet::new()).wrapping_mul(132391).wrapping_add(256))
-    }
-}
-
-pub fn compress<'a, 'b>(a: &'b Word<'a>,  b: &'b Word<'a>,  c: &'b Word<'a>,  d: &'b Word<'a>,
-                        e: &'b Word<'a>,  f: &'b Word<'a>,  g: &'b Word<'a>,  h: &'b Word<'a>)
-    ->
-    (Word<'a>, Word<'a>, Word<'a>, Word<'a>, Word<'a>, Word<'a>, Word<'a>, Word<'a>) {
-
-    let forest = a.forest;
-
-    let S1 = &[6, 11, 25].iter()
-        .map(|&shift| e >> shift)
-        .fold(Word::new(forest), |acc, item| (acc ^ item));
-
-    let not_e = &(!e);
-    let ch1 = &(e & f);
-    let ch2 = &(not_e & g);
-    let ch = &(ch1 ^ ch2);
-    let temp1 = &(h & S1);
-    let temp1 = &(temp1 + ch);
-
-    let S0 = &[2, 13, 22].iter()
-        .map(|&shift| a >> shift)
-        .fold(Word::new(forest), |acc, item| (acc ^ item));
-    let aNb = &(a & b);
-    let aNc = &(a & c);
-    let bNc = &(b & c);
-    let maj = &(aNb ^ aNc);
-    let maj = &(maj ^ bNc);
-    let temp2 = &(S0 + maj);
-
-    let dtemp1 = (d + temp1);
-    ((temp1 + temp2) , a.clone(), b.clone(), c.clone(),
-    dtemp1, e.clone(), f.clone(), g.clone())
-}
-
 
     #[test]
     fn word_basic() {
@@ -286,136 +223,18 @@ pub fn compress<'a, 'b>(a: &'b Word<'a>,  b: &'b Word<'a>,  c: &'b Word<'a>,  d:
 
         let x = Word::constant(&f, 4);
         let y = Word::constant(&f, 5);
-        let z = Word::constant(&f, 0x1337);
+        let z = Word::constant(&f, 0x138);
         let w = Word::constant(&f, 0xC0DEC0DE);
 
         assert_eq!(x(&HashSet::new()), 4);
         assert_eq!(y(&HashSet::new()), 5);
-        assert_eq!(z(&HashSet::new()), 0x1337);
+        assert_eq!(z(&HashSet::new()), 0x138);
         assert_eq!(w(&HashSet::new()), 0xC0DEC0DE);
 
         let x_y = &x + &y;
         assert_eq!(x_y(&HashSet::new()), 9);
     }
 
-    #[bench]
-    fn word_compress_bench(bench: &mut Bencher) {
-        let f = RefCell::new(Forest::with_sparsity(2));
-
-
-        bench.iter(|| {
-        let a = Word::from_fn(&f, |i|{
-            f.borrow_mut().to_node_idx(Node(i as Variable, 1, 0))
-        });
-        let b = Word::from_fn(&f, |i|{
-            let i = i;
-            f.borrow_mut().to_node_idx(Node(i as Variable, 1, 0))
-        });
-        let v = (
-            Word::constant(&f, 0),
-            Word::constant(&f, 0),
-            Word::constant(&f, 0),
-            Word::constant(&f, 0),
-            a, //Word::constant(&f, 0),
-            b, //Word::constant(&f, 0),
-            Word::constant(&f, 0),
-            Word::constant(&f, 0),
-        );
-            (0..64).into_iter().fold(
-            v,
-            |(a, b, c, d, e, f, g, h), _|
-                compress(&a, &b, &c, &d, &e, &f, &g, &h)
-            )
-        }
-        );
-    }
-
-/*    #[test]
-    fn word_compress_5() {
-        word_compress(5);
-    }
-    #[test]
-    fn word_compress_10() {
-        word_compress(10);
-    }*/
-    #[test]
-    fn word_compress_20() {
-        word_compress(20);
-    }
-
-
-    fn word_compress(d: usize) {
-        for s in (1..4) {
-            let f = RefCell::new(Forest::with_sparsity(s));
-
-            let a = Word::from_fn(&f, |i|{
-                f.borrow_mut().to_node_idx(Node(i as Variable, 1, 0))
-            });
-            let b = Word::from_fn(&f, |i|{
-                let i = i;
-                f.borrow_mut().to_node_idx(Node(i as Variable, 1, 0))
-            });
-
-            let v = (
-                Word::constant(&f, 0),
-                Word::constant(&f, 0),
-                Word::constant(&f, 0),
-                Word::constant(&f, 0),
-                a, //Word::constant(&f, 0),
-                Word::constant(&f, 0),
-                Word::constant(&f, 0),
-                Word::constant(&f, 0),
-                );
-
-            let result = (0..d).into_iter().fold(
-                v,
-                |(a, b, c, d, e, f, g, h), _|
-                compress(&a, &b, &c, &d, &e, &f, &g, &h)
-                );
-
-            //println!("{:?}", result);
-
-            let forest = f.borrow();
-
-            let mut res: Vec<_> = result.0.bits.iter().cloned().collect();
-            res.append(&mut result.1.bits.iter().cloned().collect());
-            res.append(&mut result.2.bits.iter().cloned().collect());
-            res.append(&mut result.3.bits.iter().cloned().collect());
-            res.append(&mut result.4.bits.iter().cloned().collect());
-            res.append(&mut result.5.bits.iter().cloned().collect());
-            res.append(&mut result.6.bits.iter().cloned().collect());
-            res.append(&mut result.7.bits.iter().cloned().collect());
-
-            let monomial_counts: Vec<_> = res.iter().map(|&x|monomial_count(&forest, x)).collect();
-
-            println!("{}: Min: {:?}", s, monomial_counts.iter().cloned().min());
-            println!("{}: Max: {:?}", s, monomial_counts.iter().cloned().max());
-        }
-    }
-
-    #[test]
-    fn word_compressive_sensing() {
-        use super::compressive_sensing::CompressiveSensing;
-
-        let f = RefCell::new(Forest::with_sparsity(4));
-
-        let forward = |x| {
-            let _1337 = Word::constant(&f, 1337);
-            let _FFF0 = Word::constant(&f, 0xFFF8F8FF);
-            let y = x ^ _1337;
-            y
-        };
-
-        let result = forward(Word::constant(&f, 7));
-
-        let pass_through = forward(Word::from_fn(&f, |x|x));
-        let local_adjoint = pass_through.approximate_jacobian();
-
-        let mut cs = CompressiveSensing::new(4, Word::constant(&f, 0), result);
-        let result = cs.compressive_sensing(forward, &*local_adjoint);
-
-        println!("{:?}", result);
-    }
 
     #[test]
     fn word_poly() {
@@ -431,7 +250,7 @@ pub fn compress<'a, 'b>(a: &'b Word<'a>,  b: &'b Word<'a>,  c: &'b Word<'a>,  d:
                 f.borrow_mut().to_node_idx(Node((i + 4) as Variable, 1, 0))
             } else { 0 }
         });
-        let z = Word::constant(&f, 0x1337);
+        let z = Word::constant(&f, 0x147);
         let w = Word::constant(&f, 0xC0DEC0DE);
 
         let all_set: HashSet<Variable> = (0..8).collect();
@@ -441,23 +260,23 @@ pub fn compress<'a, 'b>(a: &'b Word<'a>,  b: &'b Word<'a>,  c: &'b Word<'a>,  d:
         assert_eq!(y(&all_set), 15);
         assert_eq!(x(&none_set), 0);
         assert_eq!(y(&none_set), 0);
-        assert_eq!(z(&HashSet::new()), 0x1337);
+        assert_eq!(z(&HashSet::new()), 0x147);
         assert_eq!(w(&HashSet::new()), 0xC0DEC0DE);
     }
 
     fn bench_k_sparse_64_add(b: &mut Bencher, k: usize) {
         let f = RefCell::new(Forest::with_sparsity(k));
 
-        let mut lfsr: Variable = 1337;
+        let mut lfsr: Variable = 57;
 
-        let mut x = Word::from_fn(&f, |i|{
-            lfsr = lfsr.wrapping_mul(3138121).wrapping_add(130371);
+        let x = Word::from_fn(&f, |_|{
+            lfsr = lfsr.wrapping_mul(73).wrapping_add(67);
             f.borrow_mut().to_node_idx(Node(lfsr % 16, 1, 0))
         });
 
         b.iter(|| {
-            let y = Word::from_fn(&f, |i|{
-                lfsr = lfsr.wrapping_mul(3138121).wrapping_add(130371);
+            let y = Word::from_fn(&f, |_|{
+                lfsr = lfsr.wrapping_mul(73).wrapping_add(67);
                 f.borrow_mut().to_node_idx(Node(lfsr % 16, 1, 0))
             });
             &x + &y
@@ -476,16 +295,16 @@ pub fn compress<'a, 'b>(a: &'b Word<'a>,  b: &'b Word<'a>,  c: &'b Word<'a>,  d:
     fn bench_k_sparse_64_xor(b: &mut Bencher, k: usize) {
         let f = RefCell::new(Forest::with_sparsity(k));
 
-        let mut lfsr: Variable = 1337;
+        let mut lfsr: Variable = 57;
 
-        let mut x = Word::from_fn(&f, |i|{
-            lfsr = lfsr.wrapping_mul(3138121).wrapping_add(130371);
+        let x = Word::from_fn(&f, |_|{
+            lfsr = lfsr.wrapping_mul(73).wrapping_add(67);
             f.borrow_mut().to_node_idx(Node(lfsr % 64, 1, 0))
         });
 
         b.iter(|| {
-            let y = Word::from_fn(&f, |i|{
-            lfsr = lfsr.wrapping_mul(3138121).wrapping_add(130371);
+            let y = Word::from_fn(&f, |_|{
+                lfsr = lfsr.wrapping_mul(73).wrapping_add(67);
                 f.borrow_mut().to_node_idx(Node(lfsr % 64, 1, 0))
             });
 

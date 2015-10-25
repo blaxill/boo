@@ -1,13 +1,17 @@
-#![feature(core)]
+/*
 #![feature(hash)]
-#![feature(test)]
 #![feature(std_misc)]
 #![feature(collections)]
-#![feature(unboxed_closures)]
 #![feature(append)]
-#![feature(vec_resize)]
-#![feature(hashmap_hasher)]
 #![feature(iter_min_max)]
+*/
+
+#![feature(core)]
+#![feature(unboxed_closures)]
+#![feature(hashmap_hasher)]
+#![feature(vec_resize)]
+
+#![feature(test)]
 
 extern crate test;
 
