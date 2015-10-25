@@ -143,9 +143,9 @@ impl Debug for Forest {
 
 #[cfg(test)]
 mod test {
+    /*
     use super::*;
 
-    /*
     #[test]
     fn forest_basic() {
         let mut f = Forest::new();
