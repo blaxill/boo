@@ -1,4 +1,5 @@
-use super::forest::{Forest, Node, NodeIdx};
+use super::node::{Node, NodeIdx};
+use super::forest::Forest;
 
 pub fn monomial_count(f: &Forest,
                       idx: NodeIdx) -> usize

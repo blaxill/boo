@@ -1,4 +1,5 @@
-use super::forest::{Forest, Node, NodeIdx};
+use super::node::{Node, NodeIdx};
+use super::forest::Forest;
 
 pub fn add(f: &mut Forest,
            lhs: NodeIdx,
@@ -39,7 +40,8 @@ pub fn add(f: &mut Forest,
 #[cfg(test)]
 mod test {
     use super::*;
-    use super::super::forest::{Forest, Node};
+    use super::super::node::Node;
+    use super::super::forest::Forest;
 
     #[test]
     fn add_basic() {
@@ -50,6 +52,7 @@ mod test {
 
         let x_add_y = add(f, x, y);
         let y_add_x = add(f, y, x);
+        let x_x_y = add(f, x_add_y, x);
 
         assert_eq!(x_add_y, y_add_x);
 
@@ -64,5 +67,12 @@ mod test {
         assert_eq!(v, 1);
         assert_eq!(h, 1);
         assert_eq!(l, 0);
+
+        let Node(v, h, l) = f.to_node(x_x_y);
+
+        assert_eq!(v, 1);
+        assert_eq!(h, 1);
+        assert_eq!(l, 0);
+
     }
 }

@@ -1,38 +1,18 @@
-use super::node_hasher::NodeHasherState;
+use super::node::*;
+use super::node_page::NodePage;
 
-use std::collections::HashMap;
 use std::fmt::{Debug, Formatter, Error};
 use std::cmp::max;
 use std::collections::HashSet;
-use std::default::Default;
 use std::io::{self, Write};
 
-pub type NodeIdx = usize;
-pub type Variable = u8;
-
-#[derive(Debug, Copy, Clone, PartialEq, Eq, Hash)]
-pub struct Node(pub Variable, pub NodeIdx, pub NodeIdx);
-
-#[derive(Clone)]
-struct NodePage {
-    locations: HashMap<(NodeIdx, NodeIdx), NodeIdx, NodeHasherState>,
-}
+const HIGH_BIT: NodeIdx = 0x8000_0000_0000_0000;
 
 pub struct Forest {
     nodes: Vec<Node>,
     degrees: Vec<usize>,
     sparsity: usize,
     node_pages: Vec<NodePage>,
-}
-
-impl NodePage {
-    fn new() -> NodePage {
-        NodePage { locations: HashMap::with_capacity_and_hash_state(1024 * 32, Default::default()) }
-    }
-
-    fn get_or_insert(&mut self, hi: NodeIdx, lo: NodeIdx, next_free: NodeIdx) -> NodeIdx {
-        *self.locations.entry((hi, lo)).or_insert(next_free)
-    }
 }
 
 impl Forest {
@@ -83,11 +63,10 @@ impl Forest {
     pub fn to_node(&self, idx: NodeIdx) -> Node {
         debug_assert!(idx > 1);
 
-        let high_bit = 0x8000_0000_0000_0000;
-        let in_array = idx & high_bit > 0;
+        let in_array = idx & HIGH_BIT > 0;
 
         if in_array {
-            self.nodes[idx - high_bit]
+            self.nodes[idx - HIGH_BIT]
         } else {
             let idx = idx;
             let var = (idx & ((1 << 7) - 1)) as u8 - 2;
@@ -98,14 +77,13 @@ impl Forest {
     }
 
     pub fn degree(&self, idx: NodeIdx) -> usize {
-        let high_bit = 0x8000_0000_0000_0000;
         if idx < 2 {
             return 0;
         }
-        if idx < high_bit {
+        if idx < HIGH_BIT {
             return 1;
         }
-        self.degrees[idx - high_bit]
+        self.degrees[idx - HIGH_BIT]
     }
 
     pub fn enforce_sparsity(&mut self, idx: NodeIdx, new_sparsity: usize) -> NodeIdx {
@@ -139,8 +117,6 @@ impl Forest {
             return node.2;
         }
 
-        let high_bit = 0x8000_0000_0000_0000;
-
         if node.0 < 64 && node.1 == 1 {
             if node.2 < (1 << 55) {
                 return (node.0 as usize) + 2 | (node.2 << 7);
@@ -159,7 +135,7 @@ impl Forest {
             self.nodes.push(node);
             self.degrees.push(max(hi_sparsity + 1, lo_sparsity));
         }
-        idx | high_bit
+        idx | HIGH_BIT
     }
 
     pub fn evaluate(&self, idx: NodeIdx, variable_map: &HashSet<Variable>) -> bool {

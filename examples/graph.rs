@@ -1,8 +1,8 @@
 extern crate boo;
 
+#[allow(unused_imports)]
 use boo::{Forest, Node, add, multiply};
 use std::io::prelude::*;
-use std::io::{self, SeekFrom};
 use std::fs::File;
 
 fn main() {
@@ -17,5 +17,9 @@ fn main() {
     let mut file = File::create("foo.txt").unwrap();
     writeln!(file, "digraph {{").unwrap();
     f.write_graph(&mut file, x_add_y).unwrap();
+    writeln!(file, "}}").unwrap();
+
+    writeln!(file, "digraph {{").unwrap();
+    f.write_graph(&mut file, y_add_x).unwrap();
     writeln!(file, "}}").unwrap();
 }

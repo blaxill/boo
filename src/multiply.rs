@@ -1,4 +1,5 @@
-use super::forest::{Forest, Node, NodeIdx};
+use super::node::{Node, NodeIdx};
+use super::forest::Forest;
 use super::add::add;
 
 pub fn multiply_with_sparsity(f: &mut Forest,
@@ -45,7 +46,8 @@ pub fn multiply(f: &mut Forest,
 #[cfg(test)]
 mod test {
     use super::*;
-    use super::super::forest::{Forest, Node};
+    use super::super::node::Node;
+    use super::super::forest::Forest;
 
     #[test]
     fn multiply_basic() {
