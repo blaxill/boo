@@ -207,6 +207,7 @@ impl<'a, 'b, 'c> FnOnce<(&'b HashSet<Variable>,)> for Word<'a> {
             .enumerate()
             .fold(0,
             |value, (i, &node)| {
+                println!("{}", self.forest.borrow().evaluate(node, variable_map));
                 if self.forest.borrow().evaluate(node, variable_map) {
                     value + (1 << i)
                 } else {
