@@ -36,8 +36,8 @@ impl Forest {
         }
 
         match lo {
-            1 => try!(writeln!(writer, "{} -> T", var)),
-            0 => try!(writeln!(writer, "{} -> F", var)),
+            1 => try!(writeln!(writer, "{} -> T[style=\"dotted\"]", var)),
+            0 => try!(writeln!(writer, "{} -> F[style=\"dotted\"]", var)),
             x => {
                 let Node(y, _, _) = self.to_node(x);
                 try!(writeln!(writer, "{} -> {}", var, y));

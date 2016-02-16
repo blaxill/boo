@@ -1,9 +1,7 @@
 extern crate boo;
 
-#[allow(unused_imports)]
-use boo::{Forest, Node, add, multiply};
-use std::io::prelude::*;
-use std::fs::File;
+use boo::{Forest, Node, add};
+use std::io::stdout;
 
 fn main() {
     let f = &mut Forest::new();
@@ -12,14 +10,8 @@ fn main() {
     let y = f.to_node_idx(Node(1, 1, 0));
 
     let x_add_y = add(f, x, y);
-    let y_add_x = add(f, y, x);
 
-    let mut file = File::create("foo.txt").unwrap();
-    writeln!(file, "digraph {{").unwrap();
-    f.write_graph(&mut file, x_add_y).unwrap();
-    writeln!(file, "}}").unwrap();
-
-    writeln!(file, "digraph {{").unwrap();
-    f.write_graph(&mut file, y_add_x).unwrap();
-    writeln!(file, "}}").unwrap();
+    println!("digraph {{");
+    f.write_graph(&mut stdout(), x_add_y).unwrap();
+    println!("}}");
 }

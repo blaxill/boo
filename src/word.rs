@@ -68,6 +68,10 @@ impl<'a> Word<'a> {
         word
     }
 
+    pub fn get_bit(&self, bit: usize) -> NodeIdx {
+        self.bits[bit]
+    }
+
     pub fn evaluate<'b, 'c>(&self, variable_map: &'b HashSet<Variable>) -> u32 {
         self.bits
             .iter()
